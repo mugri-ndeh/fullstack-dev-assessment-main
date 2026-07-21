@@ -4,8 +4,10 @@ import { useRouter } from "next/router";
 import Header from "../components/Header";
 import Modal from "../components/Modal";
 import CourseForm, { CourseFormValues } from "../components/CourseForm";
+import LocationForm from "../components/LocationForm";
 import TrainerSuggestions from "../components/TrainerSuggestions";
 import { apiFetch } from "../lib/clientFetch";
+import { useLocations } from "../hooks/useLocations";
 
 // Mirrors CourseDto from services/courseService.ts (fields this page renders).
 interface CourseTrainer {
@@ -20,7 +22,9 @@ interface Course {
   name: string;
   date: string; // YYYY-MM-DD
   subjects: string[];
+  // `location` is the display name; `locationId` is what the form submits.
   location: string;
+  locationId: string;
   participants: number;
   notes: string | null;
   price: number;
@@ -55,7 +59,11 @@ export default function Courses() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CourseFormValues | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [addingLocation, setAddingLocation] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Owned here so the "Add location" modal can list what already exists and
+  // refresh the list after a successful create.
+  const { locations, refresh: refreshLocations } = useLocations();
 
   const refetch = useCallback(() => setFetchAttempt((n) => n + 1), []);
 
@@ -146,6 +154,12 @@ export default function Courses() {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
+            <button
+              onClick={() => setAddingLocation(true)}
+              className="border border-line-strong bg-surface text-fg hover:bg-surface-muted px-4 py-2 rounded-lg shadow-sm"
+            >
+              + New Location
+            </button>
             <button
               onClick={() => setCreating(true)}
               className="bg-success hover:bg-success-hover text-white px-4 py-2 rounded-lg shadow-md"
@@ -294,6 +308,22 @@ export default function Courses() {
               </tbody>
             </table>
           </div>
+        )}
+
+        {addingLocation && (
+          <Modal title="New Location" onClose={() => setAddingLocation(false)}>
+            <LocationForm
+              existing={locations}
+              onSaved={(location) => {
+                setAddingLocation(false);
+                setNotice(`Location "${location.name}" added.`);
+                // The course form reads locations on mount, so it picks the new
+                // one up next time it opens; refresh to keep this list current.
+                refreshLocations();
+              }}
+              onCancel={() => setAddingLocation(false)}
+            />
+          </Modal>
         )}
 
         {(creating || editing) && (

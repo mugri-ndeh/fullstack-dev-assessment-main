@@ -18,9 +18,14 @@ cp seminar-management/.env.example seminar-management/.env
 # 2. Build and start everything (app + Postgres + Mailhog)
 docker compose up --build -d
 
-# 3. Seed demo data (idempotent, re-runnable)
+# 3. Seed demo data + the admin login account (idempotent, re-runnable)
 docker compose exec app npx prisma db seed
 ```
+
+> Step 3 is **required**, not optional: login accounts live in the `User` table,
+> so an unseeded database has no users and every login returns 401. Set
+> `SEED_ADMIN_PASSWORD` in `.env` before seeding to use something other than the
+> demo password.
 
 | Service | URL | Notes |
 |---|---|---|
@@ -55,7 +60,8 @@ Layering rules: route files contain no business logic and no try/catch (a centra
 
 ### Data model highlights
 
-- **Course** — soft-deleted (`deletedAt`) so history and revenue reporting survive; `Decimal` money columns; indexes on the conflict/dashboard query paths (`[location, date]`, `[trainerId, date]`, `status`, `deletedAt`).
+- **Location** — reference data, seeded and extendable from the Courses screen ("+ New Location"). Courses and trainers reference it by FK (`onDelete: Restrict`), so "same location" is an id comparison rather than case-insensitive string matching, and the UI selects a location instead of accepting free text. Create-only by design: renaming a location would silently rewrite existing bookings, and deleting one in use is refused by the constraint.
+- **Course** — soft-deleted (`deletedAt`) so history and revenue reporting survive; `Decimal` money columns; indexes on the conflict/dashboard query paths (`[locationId, date]`, `[trainerId, date]`, `status`, `deletedAt`).
 - **Trainer** — hard-deleted; FK sets courses to unassigned; the service writes an `UNASSIGNED` history entry per affected course in the same transaction.
 - **TrainerAvailability** — date-range table (not JSON) so availability is filterable in SQL.
 - **AssignmentHistory** — append-only audit log with denormalized trainer name/email snapshots that survive trainer deletion.
@@ -70,7 +76,7 @@ Layering rules: route files contain no business logic and no try/catch (a centra
 - Candidates are pre-filtered by the conflict service (trainer-specific conflict types only — a venue clash must not disqualify every trainer).
 - OpenRouter chat completions (`OPENROUTER_MODEL`, default `openai/gpt-4o-mini`) with JSON response format, temperature 0.2, 20s timeout, 2 retries with jittered exponential backoff on 429/5xx/network.
 - LLM output is zod-validated, confidence clamped to 0–100, and **trainerIds whitelisted against the candidate set** (anti-hallucination); names are re-joined from the DB.
-- Deterministic fallback scorer (subject overlap 50 / same location 20 / rating 15 / availability 10 / experience 5) when the key is unset or the AI fails; responses are flagged `source: "ai" | "fallback"`.
+- Deterministic fallback scorer (subject overlap 50 / same location 20, by `locationId` / rating 15 / availability 10 / experience 5) when the key is unset or the AI fails; responses are flagged `source: "ai" | "fallback"`.
 - 5-minute in-memory cache keyed on a SHA-256 fingerprint of course + candidate data (includes `updatedAt`, so edits invalidate naturally).
 
 ### Emails
@@ -89,7 +95,8 @@ All endpoints require the session cookie (login first). Errors: `{ error: string
 |---|---|
 | `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/me` | Session management (rate-limited login) |
 | `GET /api/stats` | Dashboard aggregates (computed in DB) |
-| `GET/POST /api/courses` | List (filters: `status`, `subject`, `location`, `search`, `trainerId`, `sortBy`, `sortOrder`) / create (409 on conflicts unless `overrideConflicts`) |
+| `GET/POST /api/locations` | List selectable locations / add one (409 on a case-insensitive duplicate). No update or delete — see below |
+| `GET/POST /api/courses` | List (filters: `status`, `subject`, `locationId`, `search`, `trainerId`, `sortBy`, `sortOrder`) / create (409 on conflicts unless `overrideConflicts`) |
 | `GET/PUT/DELETE /api/courses/:id` | Detail incl. history / partial update (conflict-checked against effective state) / soft delete |
 | `POST /api/courses/check-conflicts` | Non-mutating conflict probe for forms |
 | `GET/POST /api/trainers` | List (filters + nulls-last rating sort) / create |
@@ -98,7 +105,7 @@ All endpoints require the session cookie (login first). Errors: `{ error: string
 
 ## Security
 
-Encrypted `httpOnly` `SameSite=Lax` session cookie (iron-session, 8h TTL); default-deny middleware over every page and API route; bcrypt-hashed credentials with timing-safe verification; zod validation on all inputs with whitelisted sort columns; Prisma parameterized queries (no raw SQL); React output escaping + HTML-escaped email templates; login rate limiting; generic 500s (internals logged server-side only); AI API key never leaves the server.
+Encrypted `httpOnly` `SameSite=Lax` session cookie (iron-session, 8h TTL); default-deny middleware over every page and API route; credentials stored in the `User` table as bcrypt hashes (never in code) and verified in constant time — an unknown username still costs a bcrypt round, so timing doesn't reveal which accounts exist; zod validation on all inputs with whitelisted sort columns; Prisma parameterized queries (no raw SQL); React output escaping + HTML-escaped email templates; login rate limiting; generic 500s (internals logged server-side only); AI API key never leaves the server.
 
 ## Known limitations / trade-offs
 

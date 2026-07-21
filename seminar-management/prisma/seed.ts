@@ -1,4 +1,5 @@
 import { PrismaClient, CourseStatus, AvailabilityType } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -18,11 +19,55 @@ async function main() {
   await prisma.course.deleteMany();
   await prisma.trainer.deleteMany();
 
+  // The login account. Upserted rather than wiped with the domain data: a
+  // re-seed refreshes the demo courses without silently resetting a password
+  // someone changed. The hash is computed here, so no hash literal has to live
+  // in the repo; override the password with SEED_ADMIN_PASSWORD.
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "admin123";
+  await prisma.user.upsert({
+    where: { username: "admin" },
+    update: {},
+    create: {
+      username: "admin",
+      displayName: "Admin",
+      passwordHash: await bcrypt.hash(adminPassword, 10),
+    },
+  });
+
+  // Locations are reference data selected from the UI, never typed. A few more
+  // than the demo rows use, so the dropdown has something to choose between.
+  const LOCATION_NAMES = [
+    "Berlin, Germany",
+    "Cologne, Germany",
+    "Frankfurt, Germany",
+    "Hamburg, Germany",
+    "Munich, Germany",
+    "Stuttgart, Germany",
+    "Vienna, Austria",
+    "Zurich, Switzerland",
+  ];
+  const locationIds = new Map<string, string>();
+  for (const name of LOCATION_NAMES) {
+    // Upserted, not wiped: courses and trainers reference these by FK.
+    const location = await prisma.location.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+    locationIds.set(name, location.id);
+  }
+  // Fails loudly on a typo rather than seeding a course into the wrong city.
+  const loc = (name: string): string => {
+    const id = locationIds.get(name);
+    if (!id) throw new Error(`Seed references unknown location: ${name}`);
+    return id;
+  };
+
   const sarah = await prisma.trainer.create({
     data: {
       name: "Sarah Johnson",
       subjects: ["React.js", "Next.js", "TypeScript"],
-      location: "Berlin, Germany",
+      locationId: loc("Berlin, Germany"),
       email: "sarah.johnson@example.com",
       hourlyRate: 120,
       rating: 5,
@@ -39,7 +84,7 @@ async function main() {
     data: {
       name: "Markus Weber",
       subjects: ["Node.js", "Express", "PostgreSQL"],
-      location: "Stuttgart, Germany",
+      locationId: loc("Stuttgart, Germany"),
       email: "markus.weber@example.com",
       hourlyRate: 95,
       rating: 4,
@@ -50,7 +95,7 @@ async function main() {
     data: {
       name: "Aylin Demir",
       subjects: ["React.js", "Vue.js", "JavaScript"],
-      location: "Stuttgart, Germany",
+      locationId: loc("Stuttgart, Germany"),
       email: "aylin.demir@example.com",
       hourlyRate: 85,
       rating: 4,
@@ -61,7 +106,7 @@ async function main() {
     data: {
       name: "James O'Connor",
       subjects: ["Python", "Django", "Machine Learning"],
-      location: "Munich, Germany",
+      locationId: loc("Munich, Germany"),
       email: "james.oconnor@example.com",
       hourlyRate: 140,
       rating: 5,
@@ -72,7 +117,7 @@ async function main() {
     data: {
       name: "Elena Petrova",
       subjects: ["TypeScript", "Angular", "Next.js"],
-      location: "Hamburg, Germany",
+      locationId: loc("Hamburg, Germany"),
       email: "elena.petrova@example.com",
       hourlyRate: 70,
       rating: 3,
@@ -85,7 +130,7 @@ async function main() {
       name: "Advanced React.js & Next.js Workshop",
       date: daysFromNow(14),
       subjects: ["React.js", "Next.js"],
-      location: "Stuttgart, Germany",
+      locationId: loc("Stuttgart, Germany"),
       participants: 25,
       notes: "Focus on server-side rendering and performance optimization",
       price: 2500,
@@ -111,7 +156,7 @@ async function main() {
       name: "Node.js API Bootcamp",
       date: daysFromNow(14),
       subjects: ["Node.js", "Express"],
-      location: "Stuttgart, Germany",
+      locationId: loc("Stuttgart, Germany"),
       participants: 12,
       price: 1800,
       trainerPrice: 650,
@@ -125,7 +170,7 @@ async function main() {
       name: "TypeScript Fundamentals",
       date: daysFromNow(30),
       subjects: ["TypeScript", "JavaScript"],
-      location: "Berlin, Germany",
+      locationId: loc("Berlin, Germany"),
       participants: 18,
       notes: "Beginner-friendly, hands-on exercises",
       price: 1500,
@@ -140,7 +185,7 @@ async function main() {
       name: "Next.js in Production",
       date: daysFromNow(24),
       subjects: ["Next.js", "React.js"],
-      location: "Berlin, Germany",
+      locationId: loc("Berlin, Germany"),
       participants: 20,
       price: 2200,
       trainerPrice: 750,
@@ -153,7 +198,7 @@ async function main() {
       name: "Python for Data Analysis",
       date: daysFromNow(-20),
       subjects: ["Python", "Machine Learning"],
-      location: "Munich, Germany",
+      locationId: loc("Munich, Germany"),
       participants: 15,
       price: 3000,
       trainerPrice: 1100,
@@ -177,7 +222,7 @@ async function main() {
       name: "Vue.js Crash Course",
       date: daysFromNow(-5),
       subjects: ["Vue.js"],
-      location: "Stuttgart, Germany",
+      locationId: loc("Stuttgart, Germany"),
       participants: 8,
       price: 900,
       trainerPrice: 400,
@@ -187,10 +232,15 @@ async function main() {
   });
 
   const counts = {
+    users: await prisma.user.count(),
+    locations: await prisma.location.count(),
     trainers: await prisma.trainer.count(),
     courses: await prisma.course.count(),
   };
-  console.log(`Seeded ${counts.trainers} trainers, ${counts.courses} courses.`);
+  console.log(
+    `Seeded ${counts.users} users, ${counts.locations} locations, ` +
+      `${counts.trainers} trainers, ${counts.courses} courses.`
+  );
 }
 
 main()

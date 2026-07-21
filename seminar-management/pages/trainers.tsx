@@ -10,6 +10,7 @@ interface Trainer {
   name: string;
   subjects: string[];
   location: string;
+  locationId: string;
   email: string;
   hourlyRate: number | null;
   rating: number | null;

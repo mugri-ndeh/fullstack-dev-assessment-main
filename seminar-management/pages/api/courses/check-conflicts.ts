@@ -4,7 +4,7 @@ import { detectConflicts } from "../../../services/conflictService";
 
 /**
  * POST /api/courses/check-conflicts
- * Body: { courseId?, date, location, trainerId? }
+ * Body: { courseId?, date, locationId, trainerId? }
  * Non-mutating probe so the form UI can surface conflicts before the user
  * submits. Same detection logic the save path enforces.
  */
@@ -14,7 +14,7 @@ export default createHandler({
     const conflicts = await detectConflicts({
       excludeCourseId: input.courseId,
       date: input.date,
-      location: input.location,
+      locationId: input.locationId,
       trainerId: input.trainerId,
     });
     res.status(200).json({ conflicts });

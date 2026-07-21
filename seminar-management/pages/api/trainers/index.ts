@@ -6,7 +6,7 @@ import {
 import { listTrainers, createTrainer } from "../../../services/trainerService";
 
 /**
- * GET  /api/trainers — list, filters: subject, location, search, sortBy, sortOrder
+ * GET  /api/trainers — list, filters: subject, locationId, search, sortBy, sortOrder
  * POST /api/trainers — create; body validated by trainerCreateSchema
  */
 export default createHandler({

@@ -11,6 +11,8 @@ import { prisma } from "../lib/prisma";
  * Checked (against non-deleted, non-cancelled courses only):
  * - TRAINER_DOUBLE_BOOKED: assigned trainer already has a course that day
  * - LOCATION_OCCUPIED:     another course runs at the same location that day
+ *                          (locationId equality — locations are FK reference
+ *                          data, so no case-insensitive string matching)
  * - TRAINER_UNAVAILABLE:   course date falls in a BLACKOUT window of the trainer
  */
 
@@ -34,7 +36,7 @@ export interface ConflictCheckInput {
   /** Set on updates so a course doesn't conflict with itself. */
   excludeCourseId?: string;
   date: Date;
-  location: string;
+  locationId: string;
   trainerId?: string | null;
 }
 
@@ -52,7 +54,7 @@ export async function detectConflicts(
       status: { not: "CANCELLED" },
       ...(input.excludeCourseId && { id: { not: input.excludeCourseId } }),
       OR: [
-        { location: { equals: input.location, mode: "insensitive" } },
+        { locationId: input.locationId },
         ...(input.trainerId ? [{ trainerId: input.trainerId }] : []),
       ],
     },
@@ -60,7 +62,8 @@ export async function detectConflicts(
       id: true,
       name: true,
       date: true,
-      location: true,
+      locationId: true,
+      location: { select: { name: true } },
       trainerId: true,
     },
   });
@@ -70,7 +73,7 @@ export async function detectConflicts(
       id: other.id,
       name: other.name,
       date: other.date.toISOString().slice(0, 10),
-      location: other.location,
+      location: other.location.name,
     };
     if (input.trainerId && other.trainerId === input.trainerId) {
       conflicts.push({
@@ -79,10 +82,10 @@ export async function detectConflicts(
         conflictingCourse: summary,
       });
     }
-    if (other.location.toLowerCase() === input.location.toLowerCase()) {
+    if (other.locationId === input.locationId) {
       conflicts.push({
         type: "LOCATION_OCCUPIED",
-        message: `"${other.name}" already takes place at ${other.location} on ${summary.date}`,
+        message: `"${other.name}" already takes place at ${summary.location} on ${summary.date}`,
         conflictingCourse: summary,
       });
     }

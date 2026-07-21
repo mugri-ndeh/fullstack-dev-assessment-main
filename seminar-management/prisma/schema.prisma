@@ -7,6 +7,8 @@
 // - Money fields use Decimal to avoid float rounding.
 // - Trainer availability is a separate table rather than JSON so conflict
 //   queries can filter by date range in SQL instead of in application code.
+// - Login accounts live in User; credentials are data, not code, so adding a
+//   user is a seed/insert rather than a deploy.
 
 generator client {
   provider = "prisma-client-js"
@@ -34,12 +36,38 @@ enum AssignmentAction {
   UNASSIGNED
 }
 
+// Application login accounts. Passwords are stored only as bcrypt hashes; the
+// admin account is created by the seed, not hardcoded in application code.
+// Roles are deliberately out of scope — every user has the same access.
+model User {
+  id           String @id @default(cuid())
+  username     String @unique
+  displayName  String
+  passwordHash String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Venues / cities, seeded rather than typed. Referenced by both Course (where
+// it runs) and Trainer (where they are based) so "same location" is an id
+// comparison instead of case-insensitive string matching.
+model Location {
+  id   String @id @default(cuid())
+  name String @unique
+
+  courses  Course[]
+  trainers Trainer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Course {
   id           String       @id @default(cuid())
   name         String
   date         DateTime     @db.Date
   subjects     String[]
-  location     String
   participants Int
   notes        String?
   price        Decimal      @db.Decimal(10, 2)
@@ -48,6 +76,11 @@ model Course {
 
   trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
   trainerId String?
+
+  // Restrict, not Cascade/SetNull: deleting a location that courses still
+  // reference should fail loudly rather than orphan or silently retarget them.
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  locationId String
 
   assignmentHistory AssignmentHistory[]
 
@@ -60,7 +93,7 @@ model Course {
   @@index([date])
   @@index([status])
   @@index([trainerId, date])
-  @@index([location, date])
+  @@index([locationId, date])
   @@index([deletedAt])
 }
 
@@ -68,10 +101,12 @@ model Trainer {
   id         String   @id @default(cuid())
   name       String
   subjects   String[]
-  location   String
   email      String   @unique
   hourlyRate Decimal? @db.Decimal(10, 2)
   rating     Int?     @db.SmallInt // 1–5, validated at the API layer
+
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  locationId String
 
   courses           Course[]
   availability      TrainerAvailability[]
@@ -80,7 +115,7 @@ model Trainer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([location])
+  @@index([locationId])
 }
 
 model TrainerAvailability {

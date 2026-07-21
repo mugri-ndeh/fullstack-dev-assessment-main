@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../lib/api";
 import { detectConflicts, type Conflict } from "./conflictService";
+import { requireLocation } from "./locationService";
 import {
   sendTrainerAssignmentEmail,
   type EmailResult,
@@ -16,7 +17,16 @@ import type {
 // objects; DTOs normalize to numbers / ISO strings so the frontend gets
 // predictable JSON.
 const courseInclude = {
-  trainer: { select: { id: true, name: true, email: true, location: true } },
+  trainer: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      locationId: true,
+      location: { select: { name: true } },
+    },
+  },
+  location: { select: { id: true, name: true } },
 } satisfies Prisma.CourseInclude;
 
 type CourseRow = Prisma.CourseGetPayload<{ include: typeof courseInclude }>;
@@ -27,13 +37,23 @@ export function toCourseDto(course: CourseRow) {
     name: course.name,
     date: course.date.toISOString().slice(0, 10),
     subjects: course.subjects,
-    location: course.location,
+    // `location` stays the display name so every consumer keeps rendering a
+    // plain string; `locationId` is what forms submit back.
+    location: course.location.name,
+    locationId: course.locationId,
     participants: course.participants,
     notes: course.notes,
     price: Number(course.price),
     trainerPrice: Number(course.trainerPrice),
     status: course.status,
-    trainer: course.trainer,
+    // Flattened the same way, so the trainer summary stays { …, location: string }.
+    trainer: course.trainer && {
+      id: course.trainer.id,
+      name: course.trainer.name,
+      email: course.trainer.email,
+      location: course.trainer.location.name,
+      locationId: course.trainer.locationId,
+    },
     createdAt: course.createdAt.toISOString(),
     updatedAt: course.updatedAt.toISOString(),
   };
@@ -50,9 +70,7 @@ export async function listCourses(query: CourseListQuery) {
     ...notDeleted,
     ...(query.status && { status: query.status }),
     ...(query.subject && { subjects: { has: query.subject } }),
-    ...(query.location && {
-      location: { contains: query.location, mode: "insensitive" as const },
-    }),
+    ...(query.locationId && { locationId: query.locationId }),
     ...(query.search && {
       name: { contains: query.search, mode: "insensitive" as const },
     }),
@@ -117,9 +135,15 @@ export async function createCourse(input: CourseCreateInput) {
   const trainer = input.trainerId
     ? await requireTrainer(input.trainerId)
     : null;
+  // Validate up front so an unknown location is a 400, not an FK error later.
+  await requireLocation(input.locationId);
 
   const warnings = await checkConflictsOrThrow(
-    { date: input.date, location: input.location, trainerId: input.trainerId },
+    {
+      date: input.date,
+      locationId: input.locationId,
+      trainerId: input.trainerId,
+    },
     input.status,
     input.overrideConflicts
   );
@@ -130,7 +154,7 @@ export async function createCourse(input: CourseCreateInput) {
         name: input.name,
         date: input.date,
         subjects: input.subjects,
-        location: input.location,
+        locationId: input.locationId,
         participants: input.participants,
         notes: input.notes ?? null,
         price: input.price,
@@ -179,12 +203,13 @@ export async function updateCourse(id: string, input: CourseUpdateInput) {
     trainerChanged && input.trainerId
       ? await requireTrainer(input.trainerId)
       : null;
+  if (input.locationId !== undefined) await requireLocation(input.locationId);
 
   // Check conflicts against the course's *effective* post-update state, so a
   // partial update (e.g. date only) still validates location and trainer.
   const effective = {
     date: input.date ?? existing.date,
-    location: input.location ?? existing.location,
+    locationId: input.locationId ?? existing.locationId,
     trainerId:
       input.trainerId === undefined ? existing.trainerId : input.trainerId,
     status: input.status ?? existing.status,
@@ -193,7 +218,7 @@ export async function updateCourse(id: string, input: CourseUpdateInput) {
     {
       excludeCourseId: id,
       date: effective.date,
-      location: effective.location,
+      locationId: effective.locationId,
       trainerId: effective.trainerId,
     },
     effective.status,
@@ -234,7 +259,9 @@ export async function updateCourse(id: string, input: CourseUpdateInput) {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.date !== undefined && { date: input.date }),
         ...(input.subjects !== undefined && { subjects: input.subjects }),
-        ...(input.location !== undefined && { location: input.location }),
+        ...(input.locationId !== undefined && {
+          locationId: input.locationId,
+        }),
         ...(input.participants !== undefined && {
           participants: input.participants,
         }),

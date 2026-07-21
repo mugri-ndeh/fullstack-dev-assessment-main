@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
 export interface User {
+  id: string;
   username: string;
   displayName: string;
 }

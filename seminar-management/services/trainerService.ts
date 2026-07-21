@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../lib/api";
+import { requireLocation } from "./locationService";
 import type {
   TrainerCreateInput,
   TrainerUpdateInput,
@@ -9,6 +10,7 @@ import type {
 
 const trainerInclude = {
   availability: { orderBy: { startDate: "asc" as const } },
+  location: { select: { id: true, name: true } },
 } satisfies Prisma.TrainerInclude;
 
 type TrainerRow = Prisma.TrainerGetPayload<{ include: typeof trainerInclude }>;
@@ -18,7 +20,9 @@ export function toTrainerDto(trainer: TrainerRow) {
     id: trainer.id,
     name: trainer.name,
     subjects: trainer.subjects,
-    location: trainer.location,
+    // Display name for rendering, id for the form's select.
+    location: trainer.location.name,
+    locationId: trainer.locationId,
     email: trainer.email,
     hourlyRate: trainer.hourlyRate === null ? null : Number(trainer.hourlyRate),
     rating: trainer.rating,
@@ -38,9 +42,7 @@ export type TrainerDto = ReturnType<typeof toTrainerDto>;
 export async function listTrainers(query: TrainerListQuery) {
   const where: Prisma.TrainerWhereInput = {
     ...(query.subject && { subjects: { has: query.subject } }),
-    ...(query.location && {
-      location: { contains: query.location, mode: "insensitive" as const },
-    }),
+    ...(query.locationId && { locationId: query.locationId }),
     ...(query.search && {
       OR: [
         { name: { contains: query.search, mode: "insensitive" as const } },
@@ -75,7 +77,7 @@ export async function getTrainer(id: string) {
           id: true,
           name: true,
           date: true,
-          location: true,
+          location: { select: { name: true } },
           status: true,
         },
       },
@@ -90,7 +92,10 @@ export async function getTrainer(id: string) {
   return {
     ...toTrainerDto(trainer),
     courses: trainer.courses.map((c) => ({
-      ...c,
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      location: c.location.name,
       date: c.date.toISOString().slice(0, 10),
     })),
     assignmentHistory: trainer.assignmentHistory.map((h) => ({
@@ -104,11 +109,12 @@ export async function getTrainer(id: string) {
 }
 
 export async function createTrainer(input: TrainerCreateInput) {
+  await requireLocation(input.locationId);
   const trainer = await prisma.trainer.create({
     data: {
       name: input.name,
       subjects: input.subjects,
-      location: input.location,
+      locationId: input.locationId,
       email: input.email.toLowerCase(),
       hourlyRate: input.hourlyRate ?? null,
       rating: input.rating ?? null,
@@ -124,6 +130,7 @@ export async function createTrainer(input: TrainerCreateInput) {
 export async function updateTrainer(id: string, input: TrainerUpdateInput) {
   const existing = await prisma.trainer.findUnique({ where: { id } });
   if (!existing) throw new ApiError(404, "Trainer not found");
+  if (input.locationId !== undefined) await requireLocation(input.locationId);
 
   const trainer = await prisma.$transaction(async (tx) => {
     // Availability is replace-all: simpler contract for the client than
@@ -141,7 +148,9 @@ export async function updateTrainer(id: string, input: TrainerUpdateInput) {
       data: {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.subjects !== undefined && { subjects: input.subjects }),
-        ...(input.location !== undefined && { location: input.location }),
+        ...(input.locationId !== undefined && {
+          locationId: input.locationId,
+        }),
         ...(input.email !== undefined && { email: input.email.toLowerCase() }),
         ...(input.hourlyRate !== undefined && { hourlyRate: input.hourlyRate }),
         ...(input.rating !== undefined && { rating: input.rating }),

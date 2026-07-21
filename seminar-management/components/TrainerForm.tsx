@@ -1,11 +1,12 @@
 import { FormEvent, useState } from "react";
 import { apiFetch } from "../lib/clientFetch";
+import { useLocations } from "../hooks/useLocations";
 
 export interface TrainerFormValues {
   id?: string;
   name: string;
   subjects: string[];
-  location: string;
+  locationId: string;
   email: string;
   hourlyRate: number | null;
   rating: number | null;
@@ -30,7 +31,7 @@ const TrainerForm = ({
 }) => {
   const [name, setName] = useState(initial?.name ?? "");
   const [subjects, setSubjects] = useState(initial?.subjects.join(", ") ?? "");
-  const [location, setLocation] = useState(initial?.location ?? "");
+  const [locationId, setLocationId] = useState(initial?.locationId ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
   const [hourlyRate, setHourlyRate] = useState(
     initial?.hourlyRate != null ? String(initial.hourlyRate) : ""
@@ -38,6 +39,11 @@ const TrainerForm = ({
   const [rating, setRating] = useState(
     initial?.rating != null ? String(initial.rating) : ""
   );
+  const {
+    locations,
+    isLoading: locationsLoading,
+    error: locationsError,
+  } = useLocations();
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -51,7 +57,7 @@ const TrainerForm = ({
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
-      location,
+      locationId,
       email,
       hourlyRate: hourlyRate === "" ? null : Number(hourlyRate),
       rating: rating === "" ? null : Number(rating),
@@ -102,7 +108,26 @@ const TrainerForm = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-fg mb-1" htmlFor="t-location">Location *</label>
-          <input id="t-location" className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} required />
+          <select
+            id="t-location"
+            className={inputCls}
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            required
+            disabled={locationsLoading || Boolean(locationsError)}
+          >
+            <option value="" disabled>
+              {locationsLoading ? "Loading locations…" : "— Select a location —"}
+            </option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+          {locationsError && (
+            <p className="text-danger-ink text-sm mt-1">
+              Could not load locations: {locationsError}
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

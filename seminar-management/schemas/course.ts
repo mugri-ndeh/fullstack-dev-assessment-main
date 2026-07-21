@@ -17,7 +17,7 @@ export const courseCreateSchema = z.object({
   // Accepts "2026-08-14" or full ISO datetime; stored as DATE in Postgres.
   date: z.coerce.date({ error: "Valid date is required" }),
   subjects: subjectList,
-  location: z.string().trim().min(1, "Location is required").max(200),
+  locationId: z.string().trim().min(1, "Location is required"),
   participants: z.number().int().min(1, "At least 1 participant").max(10000),
   notes: z.string().trim().max(5000).optional().nullable(),
   price: z.number().min(0, "Price cannot be negative").max(1_000_000),
@@ -38,7 +38,7 @@ export const courseUpdateSchema = courseCreateSchema.partial();
 export const courseListQuerySchema = z.object({
   status: z.enum(COURSE_STATUSES).optional(),
   subject: z.string().trim().min(1).optional(),
-  location: z.string().trim().min(1).optional(),
+  locationId: z.string().trim().min(1).optional(),
   search: z.string().trim().min(1).max(200).optional(),
   trainerId: z.string().trim().min(1).optional(),
   sortBy: z.enum(["date", "name", "price", "createdAt"]).default("date"),
@@ -49,7 +49,7 @@ export const courseListQuerySchema = z.object({
 export const conflictCheckSchema = z.object({
   courseId: z.string().trim().min(1).optional(),
   date: z.coerce.date({ error: "Valid date is required" }),
-  location: z.string().trim().min(1, "Location is required").max(200),
+  locationId: z.string().trim().min(1, "Location is required"),
   trainerId: z.string().trim().min(1).optional().nullable(),
 });
 

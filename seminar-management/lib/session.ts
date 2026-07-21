@@ -1,8 +1,11 @@
 import type { SessionOptions } from "iron-session";
 
 // Shape of the data stored (encrypted) inside the session cookie.
+// `id` references the User row, so a session points at a record rather than
+// at a name that could be reassigned.
 export interface SessionData {
   user?: {
+    id: string;
     username: string;
     displayName: string;
   };

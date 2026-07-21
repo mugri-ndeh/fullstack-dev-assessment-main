@@ -6,7 +6,7 @@ import {
 import { listCourses, createCourse } from "../../../services/courseService";
 
 /**
- * GET  /api/courses — list, filters: status, subject, location, search,
+ * GET  /api/courses — list, filters: status, subject, locationId, search,
  *                     trainerId, sortBy, sortOrder
  * POST /api/courses — create; body validated by courseCreateSchema.
  *   409 + { details: { conflicts } } if scheduling conflicts are detected;

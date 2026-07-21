@@ -37,7 +37,8 @@ const candidateSelect = {
   id: true,
   name: true,
   subjects: true,
-  location: true,
+  locationId: true,
+  location: { select: { name: true } },
   rating: true,
   hourlyRate: true,
   updatedAt: true,
@@ -55,6 +56,7 @@ interface CourseContext {
   name: string;
   date: Date;
   subjects: string[];
+  locationId: string;
   location: string;
   participants: number;
   updatedAt: Date;
@@ -63,19 +65,24 @@ interface CourseContext {
 export async function suggestTrainers(
   courseId: string
 ): Promise<SuggestResponse> {
-  const course = await prisma.course.findFirst({
+  const row = await prisma.course.findFirst({
     where: { id: courseId, deletedAt: null },
     select: {
       id: true,
       name: true,
       date: true,
       subjects: true,
-      location: true,
+      locationId: true,
+      location: { select: { name: true } },
       participants: true,
       updatedAt: true,
     },
   });
-  if (!course) throw new ApiError(404, "Course not found");
+  if (!row) throw new ApiError(404, "Course not found");
+
+  // Flatten the location relation once: downstream (prompt building, scoring,
+  // reasoning strings) wants the display name, matching by id.
+  const course: CourseContext = { ...row, location: row.location.name };
 
   const trainers = await prisma.trainer.findMany({
     select: candidateSelect,
@@ -90,7 +97,7 @@ export async function suggestTrainers(
       detectConflicts({
         excludeCourseId: course.id,
         date: course.date,
-        location: course.location,
+        locationId: course.locationId,
         trainerId: t.id,
       })
     )
@@ -186,7 +193,7 @@ function computeFingerprint(
       .map((t) => ({
         id: t.id,
         subjects: t.subjects,
-        location: t.location,
+        locationId: t.locationId,
         rating: t.rating,
         updatedAt: t.updatedAt.toISOString(),
         availability: t.availability.map(
@@ -251,7 +258,7 @@ async function rankWithAi(
       candidates: candidates.map((t) => ({
         trainerId: t.id,
         subjects: t.subjects,
-        location: t.location,
+        location: t.location.name,
         rating: t.rating,
         hourlyRate: t.hourlyRate === null ? null : Number(t.hourlyRate),
         pastCourseCount: t._count.courses,
@@ -299,7 +306,7 @@ async function rankWithAi(
 /**
  * Weighted score, clamped to 0-100:
  *   50 * subject match ratio        (matched course subjects / total)
- *   20 * same location              (case-insensitive equality)
+ *   20 * same location              (locationId equality)
  *   15 * (rating ?? 3) / 5          (unrated trainers assumed average)
  *   10 * availability               (1 if an AVAILABLE window covers the
  *                                    date, else 0.5 — unknown, not blocked)
@@ -317,8 +324,7 @@ function rankWithRules(
     );
     const subjectRatio =
       courseSubjects.length > 0 ? matched.length / courseSubjects.length : 0;
-    const sameLocation =
-      t.location.toLowerCase() === course.location.toLowerCase();
+    const sameLocation = t.locationId === course.locationId;
     const availableOnDate = hasAvailableWindow(t, course.date);
     const courseCount = t._count.courses;
     const score = Math.min(
@@ -355,8 +361,8 @@ function rankWithRules(
         ? `Covers ${s.matched.length} of ${course.subjects.length} course subject(s): ${s.matched.join(", ")}`
         : `No direct overlap with the course subjects (${course.subjects.join(", ")})`,
       location: s.sameLocation
-        ? `Based in ${s.t.location}, same as the course location`
-        : `Based in ${s.t.location}; course takes place in ${course.location}`,
+        ? `Based in ${s.t.location.name}, same as the course location`
+        : `Based in ${s.t.location.name}; course takes place in ${course.location}`,
       availability: s.availableOnDate
         ? `Has an explicit availability window covering ${date}`
         : `No conflicts on ${date}, but no explicit availability window covers it`,
@@ -382,7 +388,7 @@ function buildFallbackReasoning(
     : `${s.t.name} has no scheduling conflicts on the course date, though their subjects do not directly overlap with the course.`;
   const second = s.sameLocation
     ? `They are based in ${course.location}, avoiding any travel.`
-    : `They would travel from ${s.t.location}.`;
+    : `They would travel from ${s.t.location.name}.`;
   const third = s.availableOnDate
     ? "Their availability calendar explicitly covers this date."
     : "";

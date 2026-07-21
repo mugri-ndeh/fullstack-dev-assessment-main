@@ -1,39 +1,41 @@
 import bcrypt from "bcryptjs";
+import { findUserByUsername } from "../services/userService";
 
-// Hardcoded credentials are explicitly allowed for this assessment, but the
-// password is still stored as a bcrypt hash, not plaintext. The hash lives in
-// code rather than .env because Next.js expands `$VAR` inside .env files,
-// which silently corrupts bcrypt hashes (`$2b$10$...`). ADMIN_PASSWORD_HASH
-// still overrides it for deployments that manage env safely.
-//
-// Demo login: admin / admin123
-const DEMO_USER = {
-  username: "admin",
-  displayName: "Admin",
-  // bcrypt("admin123", cost 10)
-  passwordHash: "$2b$10$nvcnFH5zNvNI9QVry/H5Tu4f.M3pxvCBMOM0VjH/UYqdE81W6HRDC",
-};
+// Not a credential: a throwaway bcrypt hash of a random string, compared
+// against when the username doesn't exist so that an unknown user costs the
+// same ~100ms as a wrong password. Nothing can match it — the plaintext was
+// never recorded.
+const DECOY_HASH =
+  "$2b$10$5vMnUDxgW/5y3ex6RELSae/MjwslkSQyTlXLsOLOZWSVPFVH3Bw0i";
 
 export interface AuthenticatedUser {
+  id: string;
   username: string;
   displayName: string;
 }
 
 /**
- * Verify credentials. Always runs bcrypt.compare — even for unknown
- * usernames — so response timing doesn't reveal whether a username exists.
+ * Verify credentials against the User table.
+ *
+ * Always runs bcrypt.compare — even for unknown usernames — so response
+ * timing doesn't reveal whether an account exists.
  */
 export async function verifyCredentials(
   username: string,
   password: string
 ): Promise<AuthenticatedUser | null> {
-  const hash = process.env.ADMIN_PASSWORD_HASH || DEMO_USER.passwordHash;
-  const isKnownUser = username === DEMO_USER.username;
+  const user = await findUserByUsername(username);
 
-  const passwordMatches = await bcrypt.compare(password, hash);
+  const passwordMatches = await bcrypt.compare(
+    password,
+    user?.passwordHash ?? DECOY_HASH
+  );
 
-  if (isKnownUser && passwordMatches) {
-    return { username: DEMO_USER.username, displayName: DEMO_USER.displayName };
-  }
-  return null;
+  if (!user || !passwordMatches) return null;
+
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+  };
 }

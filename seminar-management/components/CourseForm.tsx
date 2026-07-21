@@ -1,12 +1,13 @@
 import { FormEvent, useState } from "react";
 import { apiFetch } from "../lib/clientFetch";
+import { useLocations } from "../hooks/useLocations";
 
 export interface CourseFormValues {
   id?: string;
   name: string;
   date: string;
   subjects: string[];
-  location: string;
+  locationId: string;
   participants: number;
   notes: string | null;
   price: number;
@@ -49,7 +50,7 @@ const CourseForm = ({
   const [name, setName] = useState(initial?.name ?? "");
   const [date, setDate] = useState(initial?.date ?? "");
   const [subjects, setSubjects] = useState(initial?.subjects.join(", ") ?? "");
-  const [location, setLocation] = useState(initial?.location ?? "");
+  const [locationId, setLocationId] = useState(initial?.locationId ?? "");
   const [participants, setParticipants] = useState(
     initial ? String(initial.participants) : "10"
   );
@@ -60,6 +61,11 @@ const CourseForm = ({
   );
   const [status, setStatus] = useState(initial?.status ?? "DRAFT");
   const [trainerId, setTrainerId] = useState(initial?.trainerId ?? "");
+  const {
+    locations,
+    isLoading: locationsLoading,
+    error: locationsError,
+  } = useLocations();
   const [errors, setErrors] = useState<string[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -73,7 +79,7 @@ const CourseForm = ({
       name,
       date,
       subjects: subjects.split(",").map((s) => s.trim()).filter(Boolean),
-      location,
+      locationId,
       participants: Number(participants),
       notes: notes || null,
       price: Number(price),
@@ -158,7 +164,26 @@ const CourseForm = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-location">Location *</label>
-          <input id="c-location" className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} required />
+          <select
+            id="c-location"
+            className={inputCls}
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            required
+            disabled={locationsLoading || Boolean(locationsError)}
+          >
+            <option value="" disabled>
+              {locationsLoading ? "Loading locations…" : "— Select a location —"}
+            </option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+          {locationsError && (
+            <p className="text-danger-ink text-sm mt-1">
+              Could not load locations: {locationsError}
+            </p>
+          )}
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-subjects">
