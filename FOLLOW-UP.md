@@ -1,105 +1,135 @@
+# FOLLOW-UP
+
 ## Architecture & Design Decisions
 
-**Q) Describe your overall architecture and design decisions. Why did you choose this structure?**  
-(Explain your folder structure, separation of concerns, design patterns used, and architectural choices.)
+**Q) Describe your overall architecture and design decisions. Why did you choose this structure?**
 
-**Q) What libraries and frameworks did you choose and why?**  
-(Explain your technology choices for both frontend and backend, including state management, validation, database ORM/ODM, etc.)
+Three-layer architecture inside Next.js: thin API route handlers (`pages/api/*` — parse, validate, delegate), a framework-free service layer (`services/*` — business rules, transactions, all Prisma access, DTO mapping), and shared zod schemas (`schemas/*`) used for every request contract. A single `createHandler` utility (`lib/api.ts`) gives every route method-based dispatch and centralized error mapping (ZodError→400, ApiError→its status, Prisma integrity codes→404/409/400, unknown→logged 500), so route files contain no try/catch and every error leaves in one envelope: `{ error, details? }`. I considered a separate Express service and rejected it: the brief's Docker topology names exactly one app container, and Next.js API routes plus a disciplined service layer give the same separation with shared types, one deploy unit, and one auth middleware covering pages and APIs. Extracting the services to a standalone server later would be mechanical because they don't import anything from Next.
 
-**Q) How did you structure your database schema? What relationships and indexes did you create?**  
-(Describe your database design, including any performance optimizations.)
+**Q) What libraries and frameworks did you choose and why?**
+
+Next.js 14 (Pages Router — matched the provided starter), TypeScript, **Prisma 6 + PostgreSQL 16** (relational fit for courses↔trainers, type-safe parameterized queries, migrations as reviewable SQL; I pinned v6 after v7 turned out to require a new config/adapter model mid-assessment), **zod** (one validation source of truth; API details render directly in forms), **iron-session** (stateless encrypted cookie, Edge-compatible so the middleware can be the auth boundary), **bcryptjs** (pure JS — no native build issues in Alpine), **nodemailer** (SMTP → Mailhog), **Tailwind** (in the starter), and **OpenRouter** for AI (one key, OpenAI-compatible API, model swappable by env var without code changes). State management is React hooks + fetch — with server state this simple, Redux/Zustand would be ceremony; I'd introduce TanStack Query the moment caching/invalidation needs grew.
+
+**Q) How did you structure your database schema? What relationships and indexes did you create?**
+
+Four models. `Course` (soft delete via `deletedAt`; `Decimal(10,2)` money; `subjects String[]`; optional trainer FK with `onDelete: SetNull`), `Trainer` (hard delete), `TrainerAvailability` (date-range rows, `AVAILABLE`/`BLACKOUT`, cascade with trainer — a table rather than JSON so availability is filterable/indexable in SQL), and `AssignmentHistory` (append-only audit log that stores both the trainer FK *and* denormalized name/email snapshots, so history survives trainer deletion — the same reason invoices snapshot prices). Indexes follow the query paths: `[location, date]` and `[trainerId, date]` composites for conflict detection, `date`, `status`, `deletedAt` for lists/dashboard, `[trainerId, startDate, endDate]` on availability, unique on trainer email.
 
 ---
 
 ## Implementation Details
 
-**Q) Explain your conflict detection algorithm. How does it work and what edge cases did you consider?**  
-(Describe the logic, time complexity, and how you handle various conflict scenarios.)
+**Q) Explain your conflict detection algorithm. How does it work and what edge cases did you consider?**
 
-**Q) Explain your AI-powered trainer matching implementation. How did you integrate with the external AI API?**  
-(Describe your AI service choice, prompt engineering approach, how you structure context for the AI, parse responses, handle API errors and rate limits, and what fallback mechanisms you implemented.)
+For a candidate `(date, location, trainerId)` the service runs **one indexed query** fetching all non-deleted, non-cancelled courses on that date matching *either* the location (case-insensitive) *or* the trainer, then classifies in code into `LOCATION_OCCUPIED` and `TRAINER_DOUBLE_BOOKED`; a second small query checks `BLACKOUT` windows covering the date (`TRAINER_UNAVAILABLE`). Complexity is O(courses on that day) after index lookup. Edge cases handled: **partial updates** are checked against the merged *effective* state (changing only the date still validates the existing location and trainer); a course **excludes itself** on update; **cancelled** courses neither cause nor receive conflicts; conflicts **block with 409 + structured details** unless the caller sends an explicit, never-persisted `overrideConflicts: true`, in which case they're echoed as warnings. Scheduling is day-granular by design — the brief's course model has a date and no time fields — and the service documents exactly which two places (the overlap predicate and the candidate query) would change to support hourly slots.
 
-**Q) How does the application handle trainer assignment and email notifications?**  
-(Describe the flow, error handling, transaction management, and how Mailhog was used for testing.)
+**Q) Explain your AI-powered trainer matching implementation. How did you integrate with the external AI API?**
 
-**Q) What security measures did you implement?**  
-(Explain input validation, sanitization, SQL injection prevention, XSS protection, authentication security, etc.)
+OpenRouter (OpenAI-compatible `/chat/completions`), model configurable via `OPENROUTER_MODEL`. The service pre-filters candidates through the conflict service — deliberately excluding only on *trainer-specific* conflict types, because excluding on `LOCATION_OCCUPIED` would disqualify every trainer whenever the venue is double-booked. The prompt contains the course profile and compact per-candidate profiles (subjects, location, rating, course count, and a **precomputed availability boolean**, because LLMs are unreliable at date-window math; emails are excluded as unnecessary PII). The model must return JSON only (`response_format: json_object`, temperature 0.2); the reply is zod-validated, confidence clamped to 0–100 integers, and **trainerIds whitelisted against the candidate set** with names re-joined from the DB — hallucinated or duplicated ids are dropped. Failure handling: 20s timeout, 2 retries with jittered exponential backoff on 429/5xx/network only; any AI failure (including "model returned garbage") falls back to a deterministic scorer — weighted subject overlap (50), same city (20), rating (15), availability (10), experience (5) — and the response is honestly flagged `source: "fallback"` with a reason, which the UI shows in an amber notice. Responses are cached 5 minutes in-memory, keyed on a SHA-256 fingerprint of course + candidate data including `updatedAt` values so edits invalidate naturally.
 
-**Q) How did you handle error cases and edge scenarios?**  
-(Describe your error handling strategy, user feedback, logging, and graceful degradation.)
+**Q) How does the application handle trainer assignment and email notifications?**
+
+Assignment happens through the course create/update path (the UI's form dropdown, quick actions, and the AI suggestion panel all end at the same service): conflict check → one transaction writing the course change plus `ASSIGNED`/`UNASSIGNED` history entries → **then** the email, outside the transaction. `sendTrainerAssignmentEmail` never throws; failures are logged and returned as `emailNotification: { sent, to, error }`, which the UI surfaces ("Saved, but the notification email failed…"). I verified both directions against Mailhog: content of the happy-path email (all course details, EUR formatting), and a real outage test — stopped the Mailhog container, reassigned, confirmed the assignment persisted with `sent: false`. Rationale: email-inside-the-transaction would let a mail outage block assignments, and a rollback after a sent email would notify trainers about assignments that never happened. The production evolution is an outbox table with a retry worker.
+
+**Q) What security measures did you implement?**
+
+Default-deny middleware over every page and API route (encrypted `httpOnly` `SameSite=Lax` iron-session cookie — not readable by JS, not sent cross-site; logout is POST-only); bcrypt-hashed credentials with a timing-safe check (`bcrypt.compare` runs even for unknown usernames) and deliberately vague 401s; per-IP login rate limiting (429 + Retry-After); zod validation on every body and query including **whitelisted sort columns** so user input never reaches `orderBy` raw; Prisma parameterized queries only; XSS via React escaping plus HTML-escaping of all interpolated email-template fields (course names/notes are user input and mail clients render HTML); unknown errors return a generic 500 with internals only in server logs; the AI key is read server-side only and the placeholder value is treated as unconfigured; LLM output is validated/whitelisted before use.
+
+**Q) How did you handle error cases and edge scenarios?**
+
+One error envelope everywhere, produced in one place (`lib/api.ts`), so the frontend has a single parsing path (`lib/clientFetch.ts` — tolerates non-JSON bodies and network failures without throwing). Every page has loading/error/empty states with retry; forms render the API's per-field zod details; 409s get a dedicated conflict UI rather than a generic error. Degradation chains: AI → fallback scorer (flagged); email failure → assignment stands, user informed; Mailhog down → logged, surfaced. Edge scenarios covered in scripted verification: duplicate email 409, deleted-trainer history integrity, soft-deleted course 404s, blackout exclusion in suggestions, override flows, cancelled-course conflict exemption.
 
 ---
 
 ## Technical Questions
 
-**Q) What command do you use to start the application locally?**  
-`(Provide the command, e.g., docker-compose up, npm start)`
+**Q) What command do you use to start the application locally?**
 
-**Q) How would you scale this application to handle 10,000+ courses?**  
-(Describe performance optimizations, caching strategies, database optimizations, etc.)
+`docker compose up --build -d`, then once: `docker compose exec app npx prisma db seed`. (Migrations run automatically on container start.) App at localhost:3000 (`admin`/`admin123`), Mailhog at :8025.
 
-**Q) How would you handle concurrent trainer assignments to the same course?**  
-(Explain your approach to race conditions, database transactions, locking mechanisms, etc.)
+**Q) How would you scale this application to handle 10,000+ courses?**
 
-**Q) What testing strategy would you implement for this application?**  
-(Describe unit tests, integration tests, E2E tests, and what you would test.)
+The schema is already indexed for the hot paths, and conflict detection queries one day's slice regardless of table size. Next steps in order: **pagination** on list endpoints (cursor-based on `(date, id)`) — the biggest current gap; a short-TTL cache or materialized view for `/api/stats` (I considered and rejected a maintained counters table now: every write path would own counter updates transactionally, the row becomes a lock hotspot, and "upcoming" can't be materialized cleanly because it depends on `now()` — cache → materialized view → event-sourced counters with nightly reconciliation is the escalation path); batching the suggestion service's per-trainer conflict checks into one same-day query (currently O(N) queries — fine at seed scale, flagged in code); moving the AI cache and rate limiter to Redis for multi-instance; Postgres read replicas for list-heavy traffic before any exotic storage changes.
+
+**Q) How would you handle concurrent trainer assignments to the same course?**
+
+Honestly: today there's a TOCTOU window — the conflict check and the write are not serialized, so two simultaneous assigns could both pass the check. Fixes in order of preference: (1) move the conflict check *inside* the write transaction and add a partial-unique constraint on `(trainerId, date)` for active courses so the database is the final arbiter regardless of application races; (2) `SELECT … FOR UPDATE` on the trainer's same-day rows inside the transaction; (3) optimistic concurrency on the course row (`updatedAt` as a version check, retry on mismatch). Same-course concurrent edits are less dangerous (last write wins on one row, history records both), but the version check would also surface "someone else changed this" to the second user.
+
+**Q) What testing strategy would you implement for this application?**
+
+Unit tests where the pure logic lives: the conflict classifier and the fallback scorer are deterministic functions crying out for table-driven tests (same-day boundaries, blackout edges, tie-breaking). Integration tests against a disposable Postgres (Testcontainers) for the service layer: assignment transaction + history, trainer-delete cascade, soft-delete filtering, the 409/override contract. API tests through the route layer for auth, validation envelopes and rate limiting. One Playwright smoke: login → create conflicting course → override → assign → email visible in Mailhog's API. Mock only the OpenRouter boundary (record/replay fixtures for malformed-output cases — the id-whitelist and clamp paths deserve explicit tests). During the assessment I substituted scripted curl suites run after every phase (visible in the git history), which is the same coverage philosophy without the harness setup time.
 
 ---
 
 ## Reflection
 
-**Q) If you had more time, what improvements or new features would you add?**  
-(Discuss potential enhancements, optimizations, or features that would make this production-ready.)
+**Q) If you had more time, what improvements or new features would you add?**
 
-**Q) Which parts of the project are you most proud of? Why?**  
-(Highlight the parts of the code that demonstrate your best work, problem-solving skills, or technical expertise.)
+Pagination + the test harness above first (both are production blockers). Then: the concurrency fix (in-transaction check + DB constraint); an outbox/retry worker for email; availability-window editing in the trainer form; in-flight request coalescing for the suggestion cache; fixing the four advisory findings the pipeline's Reviewer logged (e.g., transient-AI-failure fallbacks are cached the full 5 minutes; rule-based top-up when the AI returns fewer than 3 valid suggestions); hourly time slots using the documented extension points; and CSV export of courses.
 
-**Q) Which parts did you spend the most time on? What did you find most challenging?**  
-(Describe the most complex problems you solved, trade-offs you made, and what you learned.)
+**Q) Which parts of the project are you most proud of? Why?**
 
-**Q) What trade-offs did you make during development?**  
-(Explain any shortcuts, simplifications, or decisions you made due to time constraints, and how you would improve them.)
+The agentic pipeline, because it caught a real bug in its own orchestration: the Reviewer flagged that the UI agent had mounted the suggestions panel with hardcoded sample ids while real ids are cuids — a flaw caused by *my own scoping instruction* to that agent — and the critique routed to a Reconciler that fixed exactly that, with the decision trail logged. That's the review loop earning its keep, not theater. Second: the assignment audit trail surviving trainer hard-deletes via snapshots — small design decision, disproportionate payoff, and it made the "delete a trainer with assigned courses" cascade honest instead of destructive.
 
-**Q) Did you use AI coding tools (Claude Code, Copilot, Cursor, ChatGPT, etc.) during this assessment? If so, describe exactly how.**  
-(Be honest — we expect experienced engineers to use AI tools. What matters is *how* you used them. Did you prompt-and-accept, or did you direct, review, and correct? What decisions did you make that the AI could not have made for you?)
+**Q) Which parts did you spend the most time on? What did you find most challenging?**
 
-**Q) What part of this assessment could NOT be completed by an AI tool acting alone, and why?**  
-(This is the most important reflection question. Identify the decision, design choice, or judgment call in your submission that required genuine engineering expertise — not just generation.)
+The skill file took the most design effort — not the happy path but the failure modes: what happens on unparseable agent output (one re-prompt, then abort loudly), how to scope re-reviews so approved work isn't re-litigated, how disputes end without infinite argument (a re-asserted disputed issue counts as unresolved and burns budget). Environment friction was the sneaky time sink: a native Postgres shadowing the container on 5432, Docker Compose silently reusing a stale anonymous `node_modules` volume after adding dependencies, Prisma 7's breaking config change, and zsh's `path` variable clobbering `$PATH` in a test script. Each was minor; diagnosing them is exactly the work that doesn't show up in the final diff.
 
-**Q) How did you approach the AI API integration? What AI service did you choose and why?**  
-(Describe your AI service selection, prompt design process, how you structured the context and prompts, response parsing strategy, error handling approach, cost considerations, and any alternatives you considered.)
+**Q) What trade-offs did you make during development?**
+
+Day-granular scheduling (matches the brief's data model; extension points documented); in-memory rate limiter and AI cache (correct for single-instance, Redis at scale); no pagination; no automated test suite (scripted curl verification per phase instead); trainer availability editable only via seed/API, not the UI; the pipeline's advisory findings deliberately left unfixed to keep the reconciliation loop honest (blocking-only); accepting Next 14.2.35's residual advisories rather than a mid-assessment major upgrade. Each is recorded where the code lives, most also in README limitations.
+
+**Q) Did you use AI coding tools during this assessment? If so, describe exactly how.**
+
+Yes — Claude Code (Fable 5) drove most of the implementation, and the full session transcript is submitted as `ai-session.md`. The workflow was deliberately phase-gated: I set the architecture direction and the phase plan up front, then reviewed each phase's diff before allowing the next, with the assistant required to explain load-bearing decisions (I quizzed it on the schema choices — Decimal vs float, availability table vs JSON, history snapshots — before accepting Phase 0). Decisions that were mine, not the tool's: switching the AI provider to OpenRouter mid-build; challenging the stats endpoint with a denormalized-counters proposal and accepting the argued rejection (that analysis is now the scaling answer above); keeping the AI co-authorship trailers in git history after weighing how it reads; lifting my own "no real data fetch yet" constraint when the pipeline's Reviewer proved it made the feature unreachable; and doing the live AI-path testing with my own OpenRouter key. I corrected course rather than prompt-and-accepted: the phase pacing itself came from me pushing back on the assistant's default speed.
+
+**Q) What part of this assessment could NOT be completed by an AI tool acting alone, and why?**
+
+The judgment calls that require owning consequences rather than generating options. Concretely: deciding that email sending must sit *outside* the assignment transaction (an AI can list both options; choosing which failure mode a business eats — unnotified assignment vs blocked assignments — is a product judgment); deciding that `LOCATION_OCCUPIED` must not disqualify suggestion candidates (a semantic call about what a conflict *means*, which a plausible-looking implementation would happily get wrong); the environment debugging (the 5432 port shadowing produced an error message that pattern-matched to three wrong causes — resolving it required knowing what's installed on *my* machine); and the meta-level scoping of the agent pipeline itself — deciding agent boundaries, what context each is denied, and when the loop must give up are exactly the decisions that can't be delegated to the system being designed. The transcript shows the assistant proposing and me disposing at each of these points.
+
+**Q) How did you approach the AI API integration? What AI service did you choose and why?**
+
+OpenRouter, chosen over a direct Anthropic/OpenAI integration for one-key access to many models, an OpenAI-compatible API surface, and env-var model swapping for cost/quality tuning (default `openai/gpt-4o-mini` — suggestion ranking doesn't need a frontier model; at ~1k prompt tokens per call plus 5-minute caching, per-request cost is fractions of a cent). Prompt design: compact structured context, precomputed availability booleans instead of raw date windows, no PII, explicit JSON-only instruction with the exact target shape, low temperature. Parsing: zod safeParse → clamp → id whitelist → DB name re-join, with "fewer than one valid survivor" treated as failure. Errors: bounded retries on retryable classes only, then the deterministic fallback — the endpoint cannot fail because the AI failed; it can only get less clever, and it says so in the response. Alternatives considered: direct Anthropic SDK (fewer moving parts but locks the model choice) and tool-calling for structured output (heavier; `json_object` + validation was sufficient here).
 
 ---
 
 ## Agentic Engineering
 
-**Q) Walk us through the agent pipeline you designed in your skill file. What are the agents, what does each one receive as input, and what does it produce as output?**  
-(Be specific — list each agent by name and describe its exact input/output contract. Vague answers like "it passes context to the next agent" will score poorly.)
+**Q) Walk us through the agent pipeline you designed in your skill file. What are the agents, what does each one receive as input, and what does it produce as output?**
 
-**Q) How did you decide where to draw the boundary between agents? Why didn't you use fewer agents (e.g., one mega-agent) or more agents?**  
-(Explain your reasoning about agent granularity. What would break if you merged two agents? What would be wasteful if you split one further?)
+Five agents, file-based handoffs, orchestrated by the session that invokes the skill (which writes code never — it routes, validates, logs). **Planner**: receives the feature requirements verbatim, the repo file listing, and six named convention files to read → produces `plan.json` with five required keys (`apiContract`, `backendSteps`, `frontendSteps`, `conventionsSummary`, `risks`), machine-validated by the orchestrator. **API Agent**: receives `apiContract` + `backendSteps` + `conventionsSummary` (never `frontendSteps`) → produces four backend files plus `{ filesWritten, decisions, limitations }`. **UI Agent**: receives `apiContract` + `frontendSteps` + conventions (never `backendSteps`, forbidden from reading backend code) → produces the component + mount plus the same JSON contract. **Reviewer**: receives the whole plan, the file list to read, the tsc gate result, the requirements, and a rubric — but *not* the builders' decisions/limitations on first pass (code must stand alone) → produces `review-n.json`: `APPROVE`, or `REVISE` with issues `{ component, file, severity, problem, fixHint }`. **Reconciler** (conditional, per flagged component): receives only its component's blocking critique, the API contract, and the flagged files → produces revised files plus `{ filesChanged, issuesAddressed, issuesDisputed }`.
 
-**Q) What context does each agent receive, and what did you deliberately exclude? Why?**  
-(Good agentic design means agents get exactly what they need — no more, no less. Explain the tradeoffs you made in context scoping.)
+**Q) How did you decide where to draw the boundary between agents? Why didn't you use fewer agents or more agents?**
 
-**Q) How does your pipeline handle a rejection from the Reviewer Agent? Walk through the exact flow step by step.**  
-(Describe how the critique is passed back, which agent handles it, and how you prevent infinite loops.)
+Boundaries sit where the *artifact contract* changes: plan → code → verdict → fix are different output types with different acceptance criteria, which makes each machine-checkable. A mega-agent would collapse the property the pipeline exists for — independent adversarial review; an agent reviewing its own output has its own blind spots, and the recorded run proves the point (the Reviewer caught a flaw the UI agent had rationalized in its own "limitations" notes as acceptable). Merging API+UI would also serialize work that parallelizes cleanly off the shared contract. More agents (per-file builders, separate security reviewer) would multiply handoff overhead — every boundary costs a serialization, an acceptance check, and a failure mode — without adding a new *kind* of check; the rubric already folds security into the Reviewer. Splitting the Planner into breakdown+contract agents would just move ambiguity between two prompts.
 
-**Q) What is the termination condition for your pipeline? Under what circumstances does it stop, and how do you know it completed successfully vs. failed silently?**  
-(Explain both the success path and the failure path.)
+**Q) What context does each agent receive, and what did you deliberately exclude? Why?**
 
-**Q) What would break first if you ran this skill against a significantly larger codebase (e.g., 50 files, 10,000 lines)? How would you fix it?**  
-(This tests whether you understand the context window and cost constraints of agentic systems at scale.)
+Three exclusion principles. (1) **Contract-first blinding**: the UI agent never sees backend code — if the contract is insufficient to build against, that's a plan defect the Reviewer should surface, not something to patch by peeking (this also keeps the contract honest for future consumers). (2) **Don't teach to the test**: builders never see the review rubric, and the Reviewer doesn't see the builders' self-reported decisions on first pass — code is judged as found; on re-review the Reconciler's decisions *are* included so accepted trade-offs aren't re-flagged. (3) **Files, not transcripts**: agents exchange structured artifacts (`plan.json`, critiques), never each other's reasoning, which keeps per-agent context near-constant instead of growing with pipeline history. The cost of over-inclusion isn't just tokens — it's agents anchoring on each other's framing instead of the artifact.
 
-**Q) If the Reviewer Agent consistently rejects valid output due to a poorly written review prompt, how would you debug and fix it without changing the other agents?**  
-(This tests your ability to isolate failures in a multi-agent system.)
+**Q) How does your pipeline handle a rejection from the Reviewer Agent? Walk through the exact flow step by step.**
+
+From the actual run: (1) Reviewer returns `REVISE` — one blocking issue (`component: ui`): suggestions panel mounted with hardcoded sample ids, feature unreachable. (2) Orchestrator logs the verdict, splits blocking issues by component, writes `critique-ui-1.json` — the issue, fixHint, the exact API response shape needed, plus an orchestrator note lifting the earlier scoping constraint that had caused the bug (logged as a DECISION). (3) The ui revision counter increments to 1 (budget 2); a Reconciler is spawned with only that critique and the flagged file — not the review history, not the backend. (4) The Reconciler fixes it (real data fetch, real cuids, `onAssigned` wired), disputes nothing, and the orchestrator re-runs the tsc gate (a failure there would count as another critique against the same budget). (5) The *same* Reviewer re-reviews *only* the changed component plus cross-contract consistency, now including the Reconciler's declared decisions. It approved; had it re-asserted, the loop repeats until the component's budget (2) or the global review-round cap (3) is exhausted, at which point remaining issues carry to the final report as unresolved — the pipeline never restarts from scratch and never loops unbounded.
+
+**Q) What is the termination condition for your pipeline? Under what circumstances does it stop, and how do you know it completed successfully vs. failed silently?**
+
+Three terminal states, all defined in the skill: **SUCCESS** (Reviewer approves and the tsc gate is clean — advisory findings allowed), **PARTIAL** (revision budgets or the 3-round cap exhausted with blocking issues remaining, gate clean — ships with documented defects), **FAILURE** (structured-output contract violated after the single re-prompt, gate unfixable within budget, or unrecoverable tool errors). Silent failure is designed out by an invariant rather than by hope: every outcome must write a mandatory final block to `agent-run.log` (result, cycles used, files, unresolved issues, verification results), and the skill states that a run ending without that block *is* a failure and must be reported as one. Additionally the orchestrator's own post-approval verification (final tsc + a live authenticated smoke test of the endpoint) is recorded in that block — approval by review alone isn't trusted as "done."
+
+**Q) What would break first if you ran this skill against a significantly larger codebase? How would you fix it?**
+
+The Planner breaks first: it receives the full file listing and reads whole convention files, both of which scale with the repo, and its plan quality degrades before any hard limit is hit. Fix: replace the raw listing with a maintained architecture manifest (or a cheap pre-agent that produces one), and have the Planner request files by role ("the error-mapping utility") through a retrieval step rather than by enumerated path. Second casualty: the Reviewer, whose scope is "read everything both builders wrote" — at 50 files that becomes shallow reading; fix by sharding review by component with a thin cross-contract consistency pass on top (the re-review path already works this way, scoped to changed files — the first pass should inherit that discipline). Third: my per-cycle critique files assume issues fit one prompt; at scale, critiques need the same top-N severity truncation with the remainder logged. Costs scale roughly with review scope, not build scope, so the review sharding matters most.
+
+**Q) If the Reviewer Agent consistently rejects valid output due to a poorly written review prompt, how would you debug and fix it without changing the other agents?**
+
+The architecture makes this failure isolatable because the Reviewer's input is fully reproducible: plan + files + gate result, no hidden conversational state. I'd build a small golden set — two or three outputs I've judged correct by hand plus one with a known planted defect — and replay the Reviewer against them offline. Symptoms diagnose the prompt: flagging the golden cases means the rubric conflates advisory with blocking (tighten the blocking definition — "would produce wrong behavior/security issue/contract break", which is exactly why my severity rules are written as behavioral tests, not vibes); missing the planted defect means the rubric is too vague to direct attention. Two structural safeguards already limit blast radius: `REVISE` *requires* at least one blocking issue (an advisory-happy reviewer can't block the pipeline), and the Reconciler's dispute channel surfaces reviewer/builder disagreement in the log — a pattern of disputes upheld against re-assertion is itself the debugging signal. The fix stays confined to the Reviewer's prompt because no other agent ever sees it.
 
 ---
 
 ## Feedback
 
-**Q) How did you find the assessment overall? Did you encounter any issues or difficulties?**  
-(Provide honest feedback on the assessment's difficulty, clarity, and any areas that could be improved.)
+**Q) How did you find the assessment overall? Did you encounter any issues or difficulties?**
 
-**Q) Do you have any suggestions on how we can improve the assessment?**  
-(We welcome suggestions to improve the interview process, assessment structure, or requirements clarity.)
+Genuinely well-designed — it distinguishes "can use AI" from "can engineer with AI," and Section 5 is the best interview probe of agentic thinking I've seen: the deliverable is the *pipeline design*, with the generated code explicitly secondary, which matches how these systems fail in practice. It is broad for the stated 3–4 hours if every feature gets real verification rather than happy-path demos; the breadth is fair, the estimate is optimistic. Difficulties were environmental rather than conceptual (local Postgres shadowing the container port, Docker anonymous-volume staleness after dependency changes, a Prisma major-version surprise) — all documented in the transcript and commit history.
+
+**Q) Do you have any suggestions on how we can improve the assessment?**
+
+(1) State a time-box philosophy explicitly — "cut scope, document what you cut" vs "take the time" changes submissions more than any requirement; a rough per-section weighting would let candidates allocate effort the way you actually grade. (2) The sample data's `subject` (courses) vs `training_subjects` (trainers) naming inconsistency reads as either a trap or an accident — worth a clarifying word. (3) Consider requiring one *failure-path* proof per integration (e.g., "show the email outage behavior", "show the AI fallback") — happy paths demo well but the failure paths are where engineering lives, and requiring evidence would separate submissions sharply. (4) For Section 5, consider asking candidates to also include one *rejected* pipeline design with reasoning — boundary justification is the real signal, and the current format only shows the winner.
