@@ -1,21 +1,48 @@
-import Header from "../components/Header";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useState } from "react";
+import Header from "../components/Header";
+import { apiFetch } from "../lib/clientFetch";
+
+interface Stats {
+  totalCourses: number;
+  totalTrainers: number;
+  upcomingCourses: number;
+  unassignedUpcoming: number;
+  totalRevenue: number;
+  totalTrainerCosts: number;
+  margin: number;
+}
+
+const eur = (n: number) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
 export default function Home() {
-  const [stats] = useState({
-    totalCourses: 5,
-    totalTrainers: 12,
-    upcomingCourses: 3,
-    completedCourses: 2,
-  });
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const statCards = [
-    { label: "Total Courses", value: stats.totalCourses, color: "from-blue-500 to-blue-600", icon: "📚" },
-    { label: "Total Trainers", value: stats.totalTrainers, color: "from-green-500 to-green-600", icon: "👥" },
-    { label: "Upcoming Courses", value: stats.upcomingCourses, color: "from-orange-500 to-orange-600", icon: "📅" },
-    { label: "Completed Courses", value: stats.completedCourses, color: "from-purple-500 to-purple-600", icon: "✅" },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<{ stats: Stats }>("/api/stats").then((res) => {
+      if (cancelled) return;
+      if (res.ok && res.data) setStats(res.data.stats);
+      else setError(res.error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const statCards = stats
+    ? [
+        { label: "Total Courses", value: String(stats.totalCourses), icon: "📚", href: "/courses" },
+        { label: "Total Trainers", value: String(stats.totalTrainers), icon: "👥", href: "/trainers" },
+        { label: "Upcoming Courses", value: String(stats.upcomingCourses), icon: "📅", href: "/courses?status=SCHEDULED" },
+        { label: "Upcoming w/o Trainer", value: String(stats.unassignedUpcoming), icon: "⚠️", href: "/courses" },
+        { label: "Revenue", value: eur(stats.totalRevenue), icon: "💶" },
+        { label: "Trainer Costs", value: eur(stats.totalTrainerCosts), icon: "💸" },
+        { label: "Margin", value: eur(stats.margin), icon: "📈" },
+      ]
+    : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -25,61 +52,62 @@ export default function Home() {
           <h1 className="text-5xl font-bold text-gray-900 mb-2">Dashboard</h1>
           <p className="text-gray-600">Overview of your seminar management system</p>
         </div>
-        
+
+        {error && (
+          <div role="alert" className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">
+            {error}
+          </div>
+        )}
+
+        {!stats && !error && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-lg p-6 animate-pulse h-28" />
+            ))}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statCards.map((stat, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 border-l-4 border-transparent hover:border-opacity-100"
-              style={{ borderLeftColor: `var(--${stat.color.split(' ')[0]})` }}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-4xl">{stat.icon}</div>
-                <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${stat.color} opacity-10`}></div>
+          {statCards.map((stat) => {
+            const card = (
+              <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 h-full">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">{stat.label}</p>
+                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                  </div>
+                  <span className="text-3xl">{stat.icon}</span>
+                </div>
               </div>
-              <h2 className="text-sm font-medium text-gray-600 mb-2">{stat.label}</h2>
-              <p className={`text-4xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`}>
-                {stat.value}
-              </p>
-            </div>
-          ))}
+            );
+            return stat.href ? (
+              <Link key={stat.label} href={stat.href}>
+                {card}
+              </Link>
+            ) : (
+              <div key={stat.label}>{card}</div>
+            );
+          })}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Link
             href="/courses"
-            className="group bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-blue-500"
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all"
           >
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-3xl transform group-hover:scale-110 transition-transform">
-                📚
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">Courses</h3>
-                <p className="text-gray-600">Manage and view all courses</p>
-              </div>
-              <div className="ml-auto text-blue-500 transform group-hover:translate-x-2 transition-transform">
-                →
-              </div>
-            </div>
+            <h2 className="text-xl font-bold mb-1">Manage Courses</h2>
+            <p className="text-blue-100 text-sm">
+              Create, schedule and assign trainers to courses
+            </p>
           </Link>
-
           <Link
             href="/trainers"
-            className="group bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-8 border-2 border-transparent hover:border-green-500"
+            className="bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all"
           >
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center text-3xl transform group-hover:scale-110 transition-transform">
-                👥
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-1">Trainers</h3>
-                <p className="text-gray-600">View and manage trainers</p>
-              </div>
-              <div className="ml-auto text-green-500 transform group-hover:translate-x-2 transition-transform">
-                →
-              </div>
-            </div>
+            <h2 className="text-xl font-bold mb-1">Manage Trainers</h2>
+            <p className="text-green-100 text-sm">
+              Maintain trainer profiles, expertise and availability
+            </p>
           </Link>
         </div>
       </main>
