@@ -1,0 +1,27 @@
+{
+  "Dashboard": {
+    "title": "Tableau de bord",
+    "subtitle": "Vue d'ensemble de votre système de gestion des séminaires",
+    "stats": {
+      "totalCourses": "Total des formations",
+      "totalTrainers": "Total des formateurs",
+      "upcomingCourses": "Formations à venir",
+      "unassignedUpcoming": "À venir sans formateur",
+      "revenue": "Chiffre d'affaires",
+      "trainerCosts": "Coûts formateurs",
+      "margin": "Marge"
+    },
+    "manageCourses": "Gérer les formations",
+    "manageCoursesDescription": "Créer, planifier et affecter des formateurs aux formations",
+    "manageTrainers": "Gérer les formateurs",
+    "manageTrainersDescription": "Gérer les profils, les compétences et les disponibilités des formateurs"
+  },
+  "Api": {
+    "auth": {
+      "methodNotAllowed": "Méthode non autorisée",
+      "invalidRequest": "Requête invalide",
+      "invalidCredentials": "Nom d'utilisateur ou mot de passe invalide",
+      "rateLimited": "Trop de tentatives de connexion. Réessayez plus tard."
+    }
+  }
+}

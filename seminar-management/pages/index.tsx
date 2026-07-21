@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import type { GetStaticProps } from "next";
+import { useTranslations } from "next-intl";
 import Header from "../components/Header";
 import { apiFetch } from "../lib/clientFetch";
+import { getMessages } from "../lib/messages";
 
 interface Stats {
   totalCourses: number;
@@ -16,7 +19,18 @@ interface Stats {
 const eur = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
+/**
+ * Messages are loaded per-locale at build time. getStaticProps is enough here
+ * because this page renders no server data — the dashboard figures are fetched
+ * client-side from /api/stats, behind the auth middleware. Dynamic routes such
+ * as /courses/[id] would need getServerSideProps (or getStaticPaths) instead.
+ */
+export const getStaticProps: GetStaticProps = async ({ locale }) => ({
+  props: { messages: getMessages(locale) },
+});
+
 export default function Home() {
+  const t = useTranslations("Dashboard");
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,13 +48,13 @@ export default function Home() {
 
   const statCards = stats
     ? [
-        { label: "Total Courses", value: String(stats.totalCourses), icon: "📚", href: "/courses" },
-        { label: "Total Trainers", value: String(stats.totalTrainers), icon: "👥", href: "/trainers" },
-        { label: "Upcoming Courses", value: String(stats.upcomingCourses), icon: "📅", href: "/courses?status=SCHEDULED" },
-        { label: "Upcoming w/o Trainer", value: String(stats.unassignedUpcoming), icon: "⚠️", href: "/courses" },
-        { label: "Revenue", value: eur(stats.totalRevenue), icon: "💶" },
-        { label: "Trainer Costs", value: eur(stats.totalTrainerCosts), icon: "💸" },
-        { label: "Margin", value: eur(stats.margin), icon: "📈" },
+        { label: t("stats.totalCourses"), value: String(stats.totalCourses), icon: "📚", href: "/courses" },
+        { label: t("stats.totalTrainers"), value: String(stats.totalTrainers), icon: "👥", href: "/trainers" },
+        { label: t("stats.upcomingCourses"), value: String(stats.upcomingCourses), icon: "📅", href: "/courses?status=SCHEDULED" },
+        { label: t("stats.unassignedUpcoming"), value: String(stats.unassignedUpcoming), icon: "⚠️", href: "/courses" },
+        { label: t("stats.revenue"), value: eur(stats.totalRevenue), icon: "💶" },
+        { label: t("stats.trainerCosts"), value: eur(stats.totalTrainerCosts), icon: "💸" },
+        { label: t("stats.margin"), value: eur(stats.margin), icon: "📈" },
       ]
     : [];
 
@@ -49,8 +63,8 @@ export default function Home() {
       <Header />
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-5xl font-bold text-fg mb-2">Dashboard</h1>
-          <p className="text-fg-muted">Overview of your seminar management system</p>
+          <h1 className="text-5xl font-bold text-fg mb-2">{t("title")}</h1>
+          <p className="text-fg-muted">{t("subtitle")}</p>
         </div>
 
         {error && (
@@ -95,18 +109,18 @@ export default function Home() {
             href="/courses"
             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all"
           >
-            <h2 className="text-xl font-bold mb-1">Manage Courses</h2>
+            <h2 className="text-xl font-bold mb-1">{t("manageCourses")}</h2>
             <p className="text-blue-100 text-sm">
-              Create, schedule and assign trainers to courses
+              {t("manageCoursesDescription")}
             </p>
           </Link>
           <Link
             href="/trainers"
             className="bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all"
           >
-            <h2 className="text-xl font-bold mb-1">Manage Trainers</h2>
+            <h2 className="text-xl font-bold mb-1">{t("manageTrainers")}</h2>
             <p className="text-green-100 text-sm">
-              Maintain trainer profiles, expertise and availability
+              {t("manageTrainersDescription")}
             </p>
           </Link>
         </div>

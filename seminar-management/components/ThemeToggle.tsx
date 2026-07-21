@@ -3,23 +3,25 @@ import { useTheme } from "next-themes";
 
 const OPTIONS = [
   { value: "light", label: "Light", icon: "☀" },
-  { value: "system", label: "System", icon: "◐" },
   { value: "dark", label: "Dark", icon: "☾" },
 ] as const;
 
 /**
- * Three-way theme switch. The resolved theme is only known on the client, so
- * we render a same-sized placeholder until mount to avoid a hydration mismatch
- * and a layout shift in the header.
+ * Light/dark theme switch. `resolvedTheme` rather than `theme`: it is always a
+ * concrete "light" or "dark", so a stored "system" value from before this was
+ * a two-way toggle still highlights the right button.
+ *
+ * The active theme is only known on the client, so a same-sized placeholder
+ * renders until mount — avoids a hydration mismatch and a layout shift.
  */
 const ThemeToggle = () => {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return <div className="h-9 w-[7.5rem] rounded-lg bg-white/10" aria-hidden />;
+    return <div className="h-9 w-[5rem] rounded-lg bg-white/10" aria-hidden />;
   }
 
   return (
@@ -29,7 +31,7 @@ const ThemeToggle = () => {
       className="flex items-center gap-0.5 rounded-lg bg-white/10 p-0.5"
     >
       {OPTIONS.map((option) => {
-        const active = theme === option.value;
+        const active = resolvedTheme === option.value;
         return (
           <button
             key={option.value}

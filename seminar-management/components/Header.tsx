@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useUser } from "../hooks/useUser";
 import ThemeToggle from "./ThemeToggle";
+import LocaleToggle from "./LocaleToggle";
 
 // Self-contained: fetches the session user and owns sign-out, so pages don't
 // have to prop-drill auth state.
@@ -26,7 +27,8 @@ const Header = () => {
             Trainers
           </Link>
         </nav>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
+          <LocaleToggle />
           <ThemeToggle />
           <div className="hidden md:flex items-center space-x-4 text-sm">
             <div className="flex items-center space-x-2">

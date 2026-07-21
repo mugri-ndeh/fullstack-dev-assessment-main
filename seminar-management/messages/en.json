@@ -1,0 +1,27 @@
+{
+  "Dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Overview of your seminar management system",
+    "stats": {
+      "totalCourses": "Total Courses",
+      "totalTrainers": "Total Trainers",
+      "upcomingCourses": "Upcoming Courses",
+      "unassignedUpcoming": "Upcoming w/o Trainer",
+      "revenue": "Revenue",
+      "trainerCosts": "Trainer Costs",
+      "margin": "Margin"
+    },
+    "manageCourses": "Manage Courses",
+    "manageCoursesDescription": "Create, schedule and assign trainers to courses",
+    "manageTrainers": "Manage Trainers",
+    "manageTrainersDescription": "Maintain trainer profiles, expertise and availability"
+  },
+  "Api": {
+    "auth": {
+      "methodNotAllowed": "Method not allowed",
+      "invalidRequest": "Invalid request",
+      "invalidCredentials": "Invalid username or password",
+      "rateLimited": "Too many login attempts. Try again later."
+    }
+  }
+}
