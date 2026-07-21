@@ -27,6 +27,8 @@ export const courseCreateSchema = z.object({
     .max(1_000_000),
   status: z.enum(COURSE_STATUSES).default("DRAFT"),
   trainerId: z.string().trim().min(1).optional().nullable(),
+  // Not persisted: acknowledges detected conflicts and saves anyway.
+  overrideConflicts: z.boolean().default(false),
 });
 
 export const courseUpdateSchema = courseCreateSchema.partial();
@@ -43,6 +45,15 @@ export const courseListQuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
+// Pre-submit conflict probe (used by the form UI before saving).
+export const conflictCheckSchema = z.object({
+  courseId: z.string().trim().min(1).optional(),
+  date: z.coerce.date({ error: "Valid date is required" }),
+  location: z.string().trim().min(1, "Location is required").max(200),
+  trainerId: z.string().trim().min(1).optional().nullable(),
+});
+
+export type ConflictCheckRequest = z.infer<typeof conflictCheckSchema>;
 export type CourseCreateInput = z.infer<typeof courseCreateSchema>;
 export type CourseUpdateInput = z.infer<typeof courseUpdateSchema>;
 export type CourseListQuery = z.infer<typeof courseListQuerySchema>;

@@ -48,11 +48,17 @@ export async function listTrainers(query: TrainerListQuery) {
       ],
     }),
   };
+  // The { sort, nulls } form is only valid on nullable columns; rating and
+  // hourlyRate use it so unrated trainers sink to the bottom of "desc" sorts.
+  const nullableSort = ["rating", "hourlyRate"].includes(query.sortBy);
   const trainers = await prisma.trainer.findMany({
     where,
     include: trainerInclude,
-    // Nulls last so unrated trainers don't float to the top of "rating desc".
-    orderBy: [{ [query.sortBy]: { sort: query.sortOrder, nulls: "last" } }],
+    orderBy: {
+      [query.sortBy]: nullableSort
+        ? { sort: query.sortOrder, nulls: "last" }
+        : query.sortOrder,
+    },
   });
   return trainers.map(toTrainerDto);
 }

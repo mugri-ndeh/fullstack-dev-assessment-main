@@ -8,7 +8,9 @@ import { listCourses, createCourse } from "../../../services/courseService";
 /**
  * GET  /api/courses — list, filters: status, subject, location, search,
  *                     trainerId, sortBy, sortOrder
- * POST /api/courses — create; body validated by courseCreateSchema
+ * POST /api/courses — create; body validated by courseCreateSchema.
+ *   409 + { details: { conflicts } } if scheduling conflicts are detected;
+ *   pass overrideConflicts: true to save anyway (conflicts echoed as warnings).
  */
 export default createHandler({
   GET: async (req, res) => {
@@ -17,6 +19,7 @@ export default createHandler({
   },
   POST: async (req, res) => {
     const input = courseCreateSchema.parse(req.body);
-    res.status(201).json({ course: await createCourse(input) });
+    const { course, warnings } = await createCourse(input);
+    res.status(201).json({ course, warnings });
   },
 });

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../lib/api";
+import { detectConflicts, type Conflict } from "./conflictService";
 import type {
   CourseCreateInput,
   CourseUpdateInput,
@@ -89,10 +90,35 @@ async function requireTrainer(trainerId: string) {
   return trainer;
 }
 
+/**
+ * Conflict policy: conflicts block the save with a 409 carrying structured
+ * details, unless the caller explicitly sets overrideConflicts — then the
+ * save proceeds and the conflicts are returned as warnings. Cancelled
+ * courses are exempt (they occupy no resources).
+ */
+async function checkConflictsOrThrow(
+  params: Parameters<typeof detectConflicts>[0],
+  status: string,
+  override: boolean
+): Promise<Conflict[]> {
+  if (status === "CANCELLED") return [];
+  const conflicts = await detectConflicts(params);
+  if (conflicts.length && !override) {
+    throw new ApiError(409, "Scheduling conflicts detected", { conflicts });
+  }
+  return conflicts;
+}
+
 export async function createCourse(input: CourseCreateInput) {
   const trainer = input.trainerId
     ? await requireTrainer(input.trainerId)
     : null;
+
+  const warnings = await checkConflictsOrThrow(
+    { date: input.date, location: input.location, trainerId: input.trainerId },
+    input.status,
+    input.overrideConflicts
+  );
 
   const course = await prisma.$transaction(async (tx) => {
     const created = await tx.course.create({
@@ -124,7 +150,7 @@ export async function createCourse(input: CourseCreateInput) {
     }
     return created;
   });
-  return toCourseDto(course);
+  return { course: toCourseDto(course), warnings };
 }
 
 export async function updateCourse(id: string, input: CourseUpdateInput) {
@@ -140,6 +166,26 @@ export async function updateCourse(id: string, input: CourseUpdateInput) {
     trainerChanged && input.trainerId
       ? await requireTrainer(input.trainerId)
       : null;
+
+  // Check conflicts against the course's *effective* post-update state, so a
+  // partial update (e.g. date only) still validates location and trainer.
+  const effective = {
+    date: input.date ?? existing.date,
+    location: input.location ?? existing.location,
+    trainerId:
+      input.trainerId === undefined ? existing.trainerId : input.trainerId,
+    status: input.status ?? existing.status,
+  };
+  const warnings = await checkConflictsOrThrow(
+    {
+      excludeCourseId: id,
+      date: effective.date,
+      location: effective.location,
+      trainerId: effective.trainerId,
+    },
+    effective.status,
+    input.overrideConflicts ?? false
+  );
 
   const course = await prisma.$transaction(async (tx) => {
     if (trainerChanged && existing.trainerId) {
@@ -192,7 +238,7 @@ export async function updateCourse(id: string, input: CourseUpdateInput) {
       include: courseInclude,
     });
   });
-  return toCourseDto(course);
+  return { course: toCourseDto(course), warnings };
 }
 
 export async function softDeleteCourse(id: string) {
