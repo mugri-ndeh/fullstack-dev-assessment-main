@@ -12,16 +12,9 @@ export default function Trainers() {
     },
   ]);
 
-  const user = "John Doe"; // Replace with actual user logic
-
-  const handleSignOut = () => {
-    // Add sign-out logic here
-    console.log("User signed out");
-  };
-
   return (
     <div>
-      <Header user={user} onSignOut={handleSignOut} />
+      <Header />
       <div className="container mx-auto p-6">
         <h1 className="text-3xl font-bold mb-6">Trainers</h1>
         <button className="bg-green-500 text-white px-4 py-2 rounded mb-4">

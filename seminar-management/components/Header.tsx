@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { useUser } from "../hooks/useUser";
 
-const Header = ({ user, onSignOut }) => {
+// Self-contained: fetches the session user and owns sign-out, so pages don't
+// have to prop-drill auth state.
+const Header = () => {
+  const { user, signOut } = useUser();
+
   return (
     <header className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg">
       <div className="container mx-auto px-6 py-4 flex justify-between items-center">
@@ -12,15 +17,28 @@ const Header = ({ user, onSignOut }) => {
             Kodschul Management Hub
           </h1>
         </Link>
+        <nav className="hidden md:flex items-center space-x-6 text-sm">
+          <Link href="/courses" className="text-gray-300 hover:text-white transition">
+            Courses
+          </Link>
+          <Link href="/trainers" className="text-gray-300 hover:text-white transition">
+            Trainers
+          </Link>
+        </nav>
         <div className="flex items-center space-x-6">
           <div className="hidden md:flex items-center space-x-4 text-sm">
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-gray-300">Welcome, <span className="font-semibold text-white">{user}</span></span>
+              <span className="text-gray-300">
+                Welcome,{" "}
+                <span className="font-semibold text-white">
+                  {user?.displayName ?? "…"}
+                </span>
+              </span>
             </div>
           </div>
           <button
-            onClick={onSignOut}
+            onClick={signOut}
             className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 font-medium"
           >
             Sign Out

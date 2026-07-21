@@ -51,7 +51,7 @@ const sampleTrainers = [
 export default function Courses() {
   return (
     <div>
-      <Header user="John Doe" onSignOut={() => {}} />
+      <Header />
       <main className="container mx-auto p-6">
         <h1 className="text-4xl font-bold mb-8">Courses</h1>
         <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-md">

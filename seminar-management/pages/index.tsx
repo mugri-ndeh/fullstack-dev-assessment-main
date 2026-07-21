@@ -10,12 +10,6 @@ export default function Home() {
     completedCourses: 2,
   });
 
-  const user = "John Doe";
-
-  const handleSignOut = () => {
-    console.log("User signed out");
-  };
-
   const statCards = [
     { label: "Total Courses", value: stats.totalCourses, color: "from-blue-500 to-blue-600", icon: "📚" },
     { label: "Total Trainers", value: stats.totalTrainers, color: "from-green-500 to-green-600", icon: "👥" },
@@ -25,7 +19,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header user={user} onSignOut={handleSignOut} />
+      <Header />
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-5xl font-bold text-gray-900 mb-2">Dashboard</h1>
