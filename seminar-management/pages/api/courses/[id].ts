@@ -23,11 +23,11 @@ export default createHandler({
   },
   PUT: async (req, res) => {
     const input = courseUpdateSchema.parse(req.body);
-    const { course, warnings } = await updateCourse(
+    const { course, warnings, emailNotification } = await updateCourse(
       requireId(req.query.id),
       input
     );
-    res.status(200).json({ course, warnings });
+    res.status(200).json({ course, warnings, emailNotification });
   },
   DELETE: async (req, res) => {
     await softDeleteCourse(requireId(req.query.id));

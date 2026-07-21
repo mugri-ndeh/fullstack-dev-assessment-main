@@ -2,6 +2,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { ApiError } from "../lib/api";
 import { detectConflicts, type Conflict } from "./conflictService";
+import {
+  sendTrainerAssignmentEmail,
+  type EmailResult,
+} from "./emailService";
 import type {
   CourseCreateInput,
   CourseUpdateInput,
@@ -150,7 +154,16 @@ export async function createCourse(input: CourseCreateInput) {
     }
     return created;
   });
-  return { course: toCourseDto(course), warnings };
+
+  // Email is sent AFTER the transaction commits: a mail outage must not roll
+  // back the assignment. sendTrainerAssignmentEmail never throws — failures
+  // come back as { sent: false } and are surfaced to the client.
+  const dto = toCourseDto(course);
+  let emailNotification: EmailResult | undefined;
+  if (trainer) {
+    emailNotification = await sendTrainerAssignmentEmail(trainer, dto);
+  }
+  return { course: dto, warnings, emailNotification };
 }
 
 export async function updateCourse(id: string, input: CourseUpdateInput) {
@@ -238,7 +251,13 @@ export async function updateCourse(id: string, input: CourseUpdateInput) {
       include: courseInclude,
     });
   });
-  return { course: toCourseDto(course), warnings };
+
+  const dto = toCourseDto(course);
+  let emailNotification: EmailResult | undefined;
+  if (newTrainer) {
+    emailNotification = await sendTrainerAssignmentEmail(newTrainer, dto);
+  }
+  return { course: dto, warnings, emailNotification };
 }
 
 export async function softDeleteCourse(id: string) {

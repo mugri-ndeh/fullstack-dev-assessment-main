@@ -19,7 +19,7 @@ export default createHandler({
   },
   POST: async (req, res) => {
     const input = courseCreateSchema.parse(req.body);
-    const { course, warnings } = await createCourse(input);
-    res.status(201).json({ course, warnings });
+    const { course, warnings, emailNotification } = await createCourse(input);
+    res.status(201).json({ course, warnings, emailNotification });
   },
 });
