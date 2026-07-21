@@ -1,0 +1,13 @@
+{
+  "component": "ui",
+  "cycle": 1,
+  "issues": [
+    {
+      "file": "seminar-management/pages/courses.tsx",
+      "severity": "blocking",
+      "problem": "TrainerSuggestions is mounted with courseId from hardcoded sampleCourses (numeric ids 1/2). Real Course ids are Prisma cuids and this page never fetches GET /api/courses, so every 'Suggest trainers' click POSTs { courseId: \"1\" } -> 404, and the panel can only ever show its error state; Assign would 404 identically. Feature is unreachable end-to-end. onAssigned={refetch} was also dropped because there is nothing to refetch on a static page.",
+      "fixHint": "Fetch real courses on this page (GET /api/courses, response shape { courses: CourseDto[] } where CourseDto has id (cuid), name, date YYYY-MM-DD, subjects string[], location, participants, notes, price number, status, trainer { id, name, email, location } | null). Render rows from that data, mount the panel with the real id, and pass onAssigned={refetch} so an assign updates the table."
+    }
+  ],
+  "orchestratorNote": "The original 'do not rewrite this page to fetch real data' constraint is LIFTED for this fix — it caused the defect. Convert the page to fetch GET /api/courses (loading/error states per app conventions), keep the table structure and existing action buttons as-is otherwise, and wire onAssigned to the refetch. Do not touch backend files or TrainerSuggestions.tsx (no blocking issues there)."
+}

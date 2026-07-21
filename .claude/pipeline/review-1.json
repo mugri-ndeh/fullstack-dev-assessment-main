@@ -1,0 +1,1 @@
+{"verdict":"REVISE","blocking":1,"advisory":4,"summary":"UI mount unreachable: hardcoded sample ids vs real cuids; backend faithful to contract; 4 advisories (fallback cache pinning, min-suggestion top-up, confidence null coercion, empty-state fallbackReason)."}

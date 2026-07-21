@@ -1,0 +1,50 @@
+=== /build-trainer-matching pipeline run ===
+Orchestrator: Claude Code (Fable 5) session
+Started: 2026-07-21 14:27:39 WAT
+NOTE: OPENROUTER_API_KEY is placeholder — smoke test will assert fallback path
+[14:27:43] LAUNCH Planner Agent — input: feature requirements + git ls-files (52 paths) + 6 convention files
+[Planner] COMPLETE — plan.json accepted (5/5 keys, contract complete, paths valid). 37k tokens, 110s.
+[Planner] Notable: flagged LOCATION_OCCUPIED exclusion trap; confirmed PUT /api/courses/:id needs zero changes for Assign flow.
+DECISION: plan accepted without re-prompt.
+[14:30:10] LAUNCH API Agent (input: apiContract+backendSteps+conventions) ∥ UI Agent (input: apiContract+frontendSteps+conventions)
+[UI Agent] COMPLETE — filesWritten: components/TrainerSuggestions.tsx, pages/courses.tsx (minimal mount). 34k tokens, 251s. Self-ran tsc: clean.
+[UI Agent] decisions: single-panel-open policy (1 LLM call in flight max); defensive 409 parsing; confidence clamped client-side.
+[UI Agent] limitations: page still on hardcoded sample ids until real-data phase (suggest will 404 there — handled by error state); table trainer column doesn't refresh post-assign (no refetch exists yet).
+[Orchestrator] Waiting for API Agent before tsc gate + Reviewer.
+[API Agent] COMPLETE — filesWritten: schemas/suggestion.ts, lib/openrouter.ts, services/suggestionService.ts, pages/api/trainers/suggest.ts. 48k tokens, 269s. Self-ran tsc: clean.
+[API Agent] decisions: default model openai/gpt-4o-mini when OPENROUTER_MODEL unset; empty candidate list -> 200 + fallbackReason; markdown-fence stripping; id whitelist + dedupe; filtered _count excludes soft-deleted courses.
+[API Agent] limitations: no in-flight coalescing (concurrent identical requests may each hit LLM); worst-case ~63s before fallback; tsc-only verification (no runtime test).
+GATE: tsc clean
+[14:36:33] LAUNCH Reviewer Agent — input: plan.json + 6 written files + tsc result + requirements + rubric (build agents' notes withheld on first pass)
+[Reviewer] VERDICT: REVISE — 1 blocking (ui), 4 advisory (3 api, 1 ui). 58k tokens, 143s. review-1.json written.
+[Reviewer] Blocking: courses.tsx mounts panel with hardcoded sample ids (1/2) but real ids are cuids and page never fetches /api/courses -> feature unreachable end-to-end.
+DECISION: blocking issue traced to orchestrator's own 'no real data fetch' constraint on UI Agent; constraint lifted for the fix — reachability outranks phase sequencing. critique-ui-1.json written; ui revision counter = 1/2.
+DECISION: 4 advisory issues do not trigger reconciliation per skill rules (REVISE requires blocking); carried to final report.
+[14:39:49] LAUNCH Reconciler(ui) — input: critique-ui-1.json + apiContract + flagged file
+GATE: tsc clean after Reconciler(ui) cycle 1
+[Reconciler ui/1] COMPLETE — filesChanged: pages/courses.tsx. 41k tokens, 146s. Disputes: none.
+[Reconciler ui/1] Real GET /api/courses fetch + loading/error/retry; real cuid ids to panel; onAssigned={refetch} wired; refetch keeps open panel mounted.
+[14:42:52] RE-REVIEW — Reviewer (same agent, context preserved), scope: ui changes only + contract consistency
+[Reviewer] RE-REVIEW VERDICT: APPROVE — blocking issue resolved; page Course typing is a structural subset of CourseDto; no new issues. 64k tokens, 34s.
+[Orchestrator] Post-approval verification starting.
+FINAL GATE: tsc clean
+
+=== PIPELINE RESULT: SUCCESS ===
+Completed: 2026-07-21 14:45:51 WAT
+Components: api=0 revision cycles, ui=1 revision cycle (budget 2 each); review rounds: 2 of 3
+Files written:
+  seminar-management/schemas/suggestion.ts            (API Agent)
+  seminar-management/lib/openrouter.ts                (API Agent)
+  seminar-management/services/suggestionService.ts    (API Agent)
+  seminar-management/pages/api/trainers/suggest.ts    (API Agent)
+  seminar-management/components/TrainerSuggestions.tsx (UI Agent)
+  seminar-management/pages/courses.tsx                (UI Agent, revised by Reconciler ui/1)
+Unresolved issues: 0 blocking; 4 advisory carried (fallback-cache pinning after transient AI errors;
+  no rule-based top-up when AI returns <3 valid suggestions; confidence null coerced to 0 instead of
+  rejected; empty state omits fallbackReason)
+Verification: tsc PASS; smoke test PASS (fallback path — OPENROUTER_API_KEY is placeholder):
+  5 ranked suggestions w/ reasoning+factors, cache hit on repeat call, 404 unknown course,
+  400 missing courseId, blackout-window trainer correctly excluded (Sarah Johnson absent from
+  suggestions for course inside her blackout). AI path not exercised (no key) — flagged for
+  human follow-up.
+Agent spend: Planner 37k / API 48k / UI 34k / Reviewer 58k+64k / Reconciler 41k tokens

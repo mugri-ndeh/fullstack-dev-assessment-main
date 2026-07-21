@@ -1,0 +1,116 @@
+{
+  "apiContract": {
+    "endpoint": "POST /api/trainers/suggest",
+    "requestBody": {
+      "courseId": "string (required, non-empty; id of an existing non-deleted course)"
+    },
+    "responseBody": {
+      "courseId": "string",
+      "source": "\"ai\" | \"fallback\"",
+      "fallbackReason": "string | undefined (present only when source is \"fallback\")",
+      "cached": "boolean (true when served from the in-memory 5-min cache)",
+      "generatedAt": "string (ISO 8601 datetime)",
+      "suggestions": [
+        {
+          "trainerId": "string (Trainer.id, guaranteed to exist and be conflict-free for the course date)",
+          "name": "string (Trainer.name)",
+          "confidence": "number (integer 0-100)",
+          "reasoning": "string (1-3 sentences)",
+          "factors": {
+            "subject": "string (note on subject overlap)",
+            "location": "string (note on location match)",
+            "availability": "string (note on availability)",
+            "experience": "string (note on experience)"
+          }
+        }
+      ]
+    },
+    "errorResponses": [
+      { "status": 400, "shape": { "error": "Validation failed", "details": ["courseId: <zod message>"] } },
+      { "status": 404, "shape": { "error": "Course not found" } },
+      { "status": 405, "shape": { "error": "Method not allowed" } },
+      { "status": 500, "shape": { "error": "Internal server error" } }
+    ]
+  },
+  "backendSteps": [
+    {
+      "file": "seminar-management/schemas/suggestion.ts",
+      "purpose": "Zod schemas: request body, the LLM's structured output, and the response DTO types.",
+      "keyDecisions": [
+        "suggestRequestSchema = z.object({ courseId: z.string().trim().min(1) }) — mirrors zod style in schemas/course.ts.",
+        "llmSuggestionSchema validates model output: { trainerId, confidence 0-100, reasoning min 1, factors { subject, location, availability, experience } }; llmResponseSchema wraps { suggestions: array min 1 max 5 }.",
+        "Confidence coerced/rounded to integer and clamped 0-100 after parse; export inferred types SuggestRequest, TrainerSuggestion, SuggestResponse."
+      ]
+    },
+    {
+      "file": "seminar-management/lib/openrouter.ts",
+      "purpose": "Server-only OpenRouter chat-completions client with retry/backoff. No Prisma, no business logic.",
+      "keyDecisions": [
+        "chatCompletionJSON({ system, user }): POST https://openrouter.ai/api/v1/chat/completions, Bearer OPENROUTER_API_KEY, model OPENROUTER_MODEL, response_format json_object, temperature 0.2; returns parsed JSON of choices[0].message.content.",
+        "isConfigured(): boolean — true only when OPENROUTER_API_KEY is non-empty; service uses this to skip straight to fallback.",
+        "Retry: up to 2 retries (3 attempts) with backoff 500ms -> 1000ms (+/- 250ms jitter) for 429/5xx/network/20s-timeout; other 4xx and body-parse failures throw immediately as non-retryable.",
+        "Throws plain Error (never ApiError) — AI failure must never surface as an HTTP error because the service falls back; env read inside function, never NEXT_PUBLIC_*."
+      ]
+    },
+    {
+      "file": "seminar-management/services/suggestionService.ts",
+      "purpose": "Orchestrator: load course + candidates, exclude conflicted trainers via conflictService, cache, call LLM, validate, fallback scorer.",
+      "keyDecisions": [
+        "suggestTrainers(courseId): course via findFirst({ id, deletedAt: null }) else ApiError(404); trainers with select { id, name, subjects, location, rating, hourlyRate, _count.courses, availability }.",
+        "Conflict exclusion: detectConflicts per trainer via Promise.all; exclude ONLY on TRAINER_DOUBLE_BOOKED or TRAINER_UNAVAILABLE — LOCATION_OCCUPIED is about the venue, not the candidate, and would wrongly disqualify every trainer.",
+        "Cache: globalThis Map (pattern of lib/prisma) fingerprint -> { expiresAt, response }; fingerprint = SHA-256 of [courseId, course date/subjects/location/updatedAt, sorted candidates (id, subjects, location, rating, updatedAt, availability)]; TTL 5 min; lazy eviction; hits return cached: true.",
+        "AI path: if isConfigured() and candidates exist, compact prompt (course + per-candidate profile), model must return ONLY JSON { suggestions: [...] } 3-5 items ranked best-first; safeParse, drop suggestions whose trainerId is not in candidate set (anti-hallucination), join name from DB (never trust LLM name); <1 valid survivor = AI failure.",
+        "Fallback scorer (also on AI failure): score = round(50*subjectMatchRatio + 20*sameLocation + 15*(rating??3)/5 + 10*(availableWindowCoversDate?1:0.5) + 5*min(courseCount,5)/5) clamp 0-100; sort score desc, name asc, id asc; top 5, min 3 when available; factors/reasoning generated from same inputs; source fallback + fallbackReason."
+      ]
+    },
+    {
+      "file": "seminar-management/pages/api/trainers/suggest.ts",
+      "purpose": "Thin API route for POST /api/trainers/suggest.",
+      "keyDecisions": [
+        "createHandler({ POST }) — parse suggestRequestSchema, return await suggestTrainers(courseId); no try/catch (lib/api.ts owns errors).",
+        "No changes to pages/api/courses/[id].ts — courseUpdateSchema already accepts { trainerId, overrideConflicts } and PUT already returns 409 with conflicts.",
+        "POST not GET (triggers LLM work, cacheable server-side); empty candidate list returns 200 with suggestions: []."
+      ]
+    }
+  ],
+  "frontendSteps": [
+    {
+      "file": "seminar-management/components/TrainerSuggestions.tsx",
+      "purpose": "Self-contained ranked-suggestions panel with assign flow, mirroring Header.tsx conventions.",
+      "keyDecisions": [
+        "Props: { courseId: string; onAssigned?: (trainerId: string) => void }; component fetches POST /api/trainers/suggest in useEffect keyed on courseId; state: { status loading|error|ready, data?, assigningId?, confirmConflicts? }.",
+        "Per suggestion (#1..#5): name, integer confidence with bar (outer bg-slate-200 rounded-full h-2, inner bg-gradient-to-r from-blue-500 to-purple-600 width %), reasoning text-gray-600, four factor rows (Subject/Location/Availability/Experience); source fallback -> amber notice (bg-amber-50 border-amber-300 text-amber-800) incl. fallbackReason.",
+        "States: loading = animate-pulse skeleton; error = message + Retry; empty = 'No suitable trainers found' card; errors read from { error, details? } envelope.",
+        "Assign: PUT /api/courses/${courseId} body { trainerId }; 2xx -> onAssigned; 409 -> parse details conflicts, inline confirm listing conflict messages with 'Assign anyway' (retry with overrideConflicts: true) / 'Cancel'; disable Assign buttons while assigning.",
+        "No new dependencies; slate/blue/purple palette, rounded-lg, shadow, transition."
+      ]
+    },
+    {
+      "file": "seminar-management/pages/courses.tsx",
+      "purpose": "Mount TrainerSuggestions in the course management UI.",
+      "keyDecisions": [
+        "Render <TrainerSuggestions courseId={...} onAssigned={refetch} /> behind a 'Suggest trainers' toggle in the course detail surface — LLM call only on demand, never per list row.",
+        "Smallest possible edit to this page; no restructuring of existing list logic."
+      ]
+    }
+  ],
+  "conventionsSummary": [
+    "Wrap every API route in createHandler from lib/api.ts; never hand-roll try/catch or error JSON in routes.",
+    "Throw ApiError(status, message, details?) from services; envelope is always { error, details? }.",
+    "Validate bodies with zod schemas in schemas/ (trim, min(1), explicit messages, z.coerce.date); schema.parse and let ZodError become 400.",
+    "Services own all Prisma access and return DTOs: Decimal -> Number, DateTime -> toISOString, date-only -> slice(0,10); routes stay thin.",
+    "Reuse detectConflicts from services/conflictService.ts with excludeCourseId; types TRAINER_DOUBLE_BOOKED | LOCATION_OCCUPIED | TRAINER_UNAVAILABLE.",
+    "OPENROUTER_API_KEY / OPENROUTER_MODEL from process.env server-side only; never NEXT_PUBLIC_.",
+    "Components: default-export arrow fn, self-contained fetching, Tailwind only, slate/blue/purple palette, no new npm deps.",
+    "Hot-reload-surviving singletons go on globalThis (lib/prisma.ts pattern).",
+    "Exclude soft-deleted courses (deletedAt: null) in every course query."
+  ],
+  "risks": [
+    "LLM malformed JSON / hallucinated trainerIds — zod safeParse + clamp + candidate-id whitelist + deterministic fallback; builders must not skip the whitelist.",
+    "Per-trainer detectConflicts is O(N) queries — fine at seed scale; batch into one same-day query if trainer count grows; do NOT reimplement conflict logic.",
+    "In-memory cache is per-process (resets on redeploy/HMR, not shared across instances) — acceptable per spec; fingerprint must include updatedAt fields to bound staleness.",
+    "LOCATION_OCCUPIED trap: excluding on any conflict would disqualify all candidates when the venue is double-booked; filter trainer-specific types only.",
+    "OpenRouter worst-case latency (~45s with retries) — frontend loading state must tolerate it; timeout budget may need trimming.",
+    "Assign must send ONLY { trainerId } (+overrideConflicts on retry) so the partial PUT can't clobber fields; confidence is self-reported — present as relative ranking."
+  ]
+}
