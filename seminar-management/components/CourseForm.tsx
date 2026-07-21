@@ -27,7 +27,7 @@ interface EmailNotification {
 }
 
 const inputCls =
-  "w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500";
+  "w-full bg-surface text-fg border border-line-strong rounded-lg px-3 py-2 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary";
 
 /**
  * Create/edit course form with the conflict-override flow: a 409 renders the
@@ -110,7 +110,7 @@ const CourseForm = ({
   return (
     <form onSubmit={(e) => submit(e)} className="space-y-4">
       {errors.length > 0 && (
-        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+        <div role="alert" className="bg-danger-soft border border-danger-line text-danger-ink rounded-lg px-4 py-3 text-sm">
           <ul className="list-disc pl-4">
             {errors.map((err) => (
               <li key={err}>{err}</li>
@@ -120,7 +120,7 @@ const CourseForm = ({
       )}
 
       {conflicts && (
-        <div role="alert" className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg px-4 py-3 text-sm">
+        <div role="alert" className="bg-warning-soft border border-warning-line text-warning-ink rounded-lg px-4 py-3 text-sm">
           <p className="font-semibold mb-1">Scheduling conflicts detected:</p>
           <ul className="list-disc pl-4 mb-3">
             {conflicts.map((c, i) => (
@@ -132,14 +132,14 @@ const CourseForm = ({
               type="button"
               disabled={saving}
               onClick={() => submit(null, true)}
-              className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg disabled:opacity-60"
+              className="bg-warning hover:bg-warning-hover text-warning-fg px-3 py-1.5 rounded-lg disabled:opacity-60"
             >
               Save anyway
             </button>
             <button
               type="button"
               onClick={() => setConflicts(null)}
-              className="border border-amber-400 px-3 py-1.5 rounded-lg"
+              className="border border-warning-line px-3 py-1.5 rounded-lg"
             >
               Go back
             </button>
@@ -149,29 +149,29 @@ const CourseForm = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-name">Course name *</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-name">Course name *</label>
           <input id="c-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required maxLength={200} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-date">Date *</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-date">Date *</label>
           <input id="c-date" type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-location">Location *</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-location">Location *</label>
           <input id="c-location" className={inputCls} value={location} onChange={(e) => setLocation(e.target.value)} required />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-subjects">
-            Subjects * <span className="text-gray-400 font-normal">(comma-separated)</span>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-subjects">
+            Subjects * <span className="text-fg-subtle font-normal">(comma-separated)</span>
           </label>
           <input id="c-subjects" className={inputCls} value={subjects} onChange={(e) => setSubjects(e.target.value)} required placeholder="React.js, Next.js" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-participants">Participants *</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-participants">Participants *</label>
           <input id="c-participants" type="number" min="1" className={inputCls} value={participants} onChange={(e) => setParticipants(e.target.value)} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-status">Status</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-status">Status</label>
           <select id="c-status" className={inputCls} value={status} onChange={(e) => setStatus(e.target.value)}>
             {["DRAFT", "SCHEDULED", "COMPLETED", "CANCELLED"].map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -179,15 +179,15 @@ const CourseForm = ({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-price">Course price € *</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-price">Course price € *</label>
           <input id="c-price" type="number" min="0" step="0.01" className={inputCls} value={price} onChange={(e) => setPrice(e.target.value)} required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-tprice">Trainer price € *</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-tprice">Trainer price € *</label>
           <input id="c-tprice" type="number" min="0" step="0.01" className={inputCls} value={trainerPrice} onChange={(e) => setTrainerPrice(e.target.value)} required />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-trainer">Trainer</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-trainer">Trainer</label>
           <select id="c-trainer" className={inputCls} value={trainerId} onChange={(e) => setTrainerId(e.target.value)}>
             <option value="">— Unassigned —</option>
             {trainers.map((t) => (
@@ -196,16 +196,16 @@ const CourseForm = ({
           </select>
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="c-notes">Notes</label>
+          <label className="block text-sm font-medium text-fg mb-1" htmlFor="c-notes">Notes</label>
           <textarea id="c-notes" className={inputCls} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={5000} />
         </div>
       </div>
 
       <div className="flex justify-end space-x-3 pt-2">
-        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-line-strong text-fg hover:bg-surface-muted">
           Cancel
         </button>
-        <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60">
+        <button type="submit" disabled={saving} className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover disabled:opacity-60">
           {saving ? "Saving…" : initial?.id ? "Save changes" : "Create course"}
         </button>
       </div>

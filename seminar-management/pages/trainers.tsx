@@ -62,7 +62,7 @@ export default function Trainers() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <Header />
       <main className="container mx-auto p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -72,12 +72,12 @@ export default function Trainers() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name or email…"
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-surface text-fg border border-line-strong rounded-lg px-3 py-2 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               aria-label="Search trainers"
             />
             <button
               onClick={() => setCreating(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md"
+              className="bg-success hover:bg-success-hover text-white px-4 py-2 rounded-lg shadow-md"
             >
               + New Trainer
             </button>
@@ -85,13 +85,13 @@ export default function Trainers() {
         </div>
 
         {notice && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3 flex justify-between">
+          <div className="mb-4 bg-primary-soft border border-primary-line text-primary-ink rounded-lg px-4 py-3 flex justify-between">
             <span>{notice}</span>
             <button onClick={() => setNotice(null)} aria-label="Dismiss">×</button>
           </div>
         )}
         {error && (
-          <div role="alert" className="mb-4 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">
+          <div role="alert" className="mb-4 bg-danger-soft border border-danger-line text-danger-ink rounded-lg px-4 py-3">
             {error}{" "}
             <button className="underline" onClick={() => load(search)}>
               Retry
@@ -99,16 +99,16 @@ export default function Trainers() {
           </div>
         )}
         {!trainers && !error && (
-          <div className="bg-white rounded-lg shadow p-8 animate-pulse text-gray-400">
+          <div className="bg-surface rounded-lg shadow p-8 animate-pulse text-fg-subtle">
             Loading trainers…
           </div>
         )}
 
         {trainers && (
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-md">
+            <table className="min-w-full bg-surface border border-line rounded-lg shadow-md">
               <thead>
-                <tr className="bg-gray-100 border-b text-left text-gray-600 font-semibold">
+                <tr className="bg-surface-muted border-b text-left text-fg-muted font-semibold">
                   <th className="py-3 px-4">Name</th>
                   <th className="py-3 px-4">Subjects</th>
                   <th className="py-3 px-4">Location</th>
@@ -121,19 +121,19 @@ export default function Trainers() {
               <tbody>
                 {trainers.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 px-4 text-center text-gray-500">
+                    <td colSpan={7} className="py-6 px-4 text-center text-fg-muted">
                       No trainers found.
                     </td>
                   </tr>
                 )}
                 {trainers.map((t) => (
-                  <tr key={t.id} className="border-b hover:bg-gray-50">
+                  <tr key={t.id} className="border-b hover:bg-surface-muted">
                     <td className="py-3 px-4">
-                      <Link href={`/trainers/${t.id}`} className="font-semibold text-blue-700 hover:underline">
+                      <Link href={`/trainers/${t.id}`} className="font-semibold text-primary-ink hover:underline">
                         {t.name}
                       </Link>
                       {t.availability.some((a) => a.type === "BLACKOUT") && (
-                        <span className="ml-2 text-xs bg-amber-100 text-amber-800 rounded px-1.5 py-0.5">
+                        <span className="ml-2 text-xs bg-warning-soft text-warning-ink rounded px-1.5 py-0.5">
                           has blackout dates
                         </span>
                       )}
@@ -141,27 +141,27 @@ export default function Trainers() {
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap gap-1">
                         {t.subjects.map((s) => (
-                          <span key={s} className="text-xs bg-blue-100 text-blue-800 rounded px-1.5 py-0.5">
+                          <span key={s} className="text-xs bg-primary-soft text-primary-ink rounded px-1.5 py-0.5">
                             {s}
                           </span>
                         ))}
                       </div>
                     </td>
                     <td className="py-3 px-4">{t.location}</td>
-                    <td className="py-3 px-4 text-gray-600">{t.email}</td>
+                    <td className="py-3 px-4 text-fg-muted">{t.email}</td>
                     <td className="py-3 px-4">{t.hourlyRate != null ? `€${t.hourlyRate}` : "—"}</td>
                     <td className="py-3 px-4">{t.rating != null ? "★".repeat(t.rating) : "—"}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => setEditing(t)}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-sm"
+                          className="bg-warning hover:bg-warning-hover text-warning-fg px-3 py-1.5 rounded-lg text-sm"
                         >
                           Edit
                         </button>
                         {confirmDeleteId === t.id ? (
                           <span className="flex items-center gap-1 text-sm">
-                            <button onClick={() => remove(t.id)} className="bg-red-600 text-white px-2 py-1.5 rounded-lg">
+                            <button onClick={() => remove(t.id)} className="bg-danger text-white px-2 py-1.5 rounded-lg">
                               Confirm
                             </button>
                             <button onClick={() => setConfirmDeleteId(null)} className="border px-2 py-1.5 rounded-lg">
@@ -171,7 +171,7 @@ export default function Trainers() {
                         ) : (
                           <button
                             onClick={() => setConfirmDeleteId(t.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm"
+                            className="bg-danger hover:bg-danger text-white px-3 py-1.5 rounded-lg text-sm"
                           >
                             Delete
                           </button>

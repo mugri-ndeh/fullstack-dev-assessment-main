@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useUser } from "../hooks/useUser";
+import ThemeToggle from "./ThemeToggle";
 
 // Self-contained: fetches the session user and owns sign-out, so pages don't
 // have to prop-drill auth state.
@@ -25,7 +26,8 @@ const Header = () => {
             Trainers
           </Link>
         </nav>
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-4">
+          <ThemeToggle />
           <div className="hidden md:flex items-center space-x-4 text-sm">
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>

@@ -45,16 +45,16 @@ export default function Home() {
     : [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-canvas">
       <Header />
       <main className="container mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-5xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Overview of your seminar management system</p>
+          <h1 className="text-5xl font-bold text-fg mb-2">Dashboard</h1>
+          <p className="text-fg-muted">Overview of your seminar management system</p>
         </div>
 
         {error && (
-          <div role="alert" className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">
+          <div role="alert" className="mb-6 bg-danger-soft border border-danger-line text-danger-ink rounded-lg px-4 py-3">
             {error}
           </div>
         )}
@@ -62,7 +62,7 @@ export default function Home() {
         {!stats && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-xl shadow-lg p-6 animate-pulse h-28" />
+              <div key={i} className="bg-surface border border-line rounded-xl shadow-sm p-6 animate-pulse h-28" />
             ))}
           </div>
         )}
@@ -70,11 +70,11 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {statCards.map((stat) => {
             const card = (
-              <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 p-6 h-full">
+              <div className="bg-surface border border-line rounded-xl shadow-sm hover:shadow-lg hover:border-line-strong transition-all duration-300 transform hover:-translate-y-1 p-6 h-full">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">{stat.label}</p>
-                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                    <p className="text-sm text-fg-muted mb-1">{stat.label}</p>
+                    <p className="text-3xl font-bold text-fg">{stat.value}</p>
                   </div>
                   <span className="text-3xl">{stat.icon}</span>
                 </div>

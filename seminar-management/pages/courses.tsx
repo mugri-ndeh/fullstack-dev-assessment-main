@@ -32,10 +32,10 @@ interface Course {
 const STATUSES = ["DRAFT", "SCHEDULED", "COMPLETED", "CANCELLED"] as const;
 
 const statusColors: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-700",
-  SCHEDULED: "bg-blue-100 text-blue-800",
-  COMPLETED: "bg-green-100 text-green-800",
-  CANCELLED: "bg-red-100 text-red-700",
+  DRAFT: "bg-surface-hover text-fg-muted",
+  SCHEDULED: "bg-primary-soft text-primary-ink",
+  COMPLETED: "bg-success-soft text-success-ink",
+  CANCELLED: "bg-danger-soft text-danger-ink",
 };
 
 export default function Courses() {
@@ -122,7 +122,7 @@ export default function Courses() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <Header />
       <main className="container mx-auto p-6">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -133,13 +133,13 @@ export default function Courses() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search courses…"
               aria-label="Search courses"
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-surface text-fg border border-line-strong rounded-lg px-3 py-2 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               aria-label="Filter by status"
-              className="border border-gray-300 rounded-lg px-3 py-2"
+              className="bg-surface text-fg border border-line-strong rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">All statuses</option>
               {STATUSES.map((s) => (
@@ -148,7 +148,7 @@ export default function Courses() {
             </select>
             <button
               onClick={() => setCreating(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md"
+              className="bg-success hover:bg-success-hover text-white px-4 py-2 rounded-lg shadow-md"
             >
               + New Course
             </button>
@@ -156,27 +156,27 @@ export default function Courses() {
         </div>
 
         {notice && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-4 py-3 flex justify-between">
+          <div className="mb-4 bg-primary-soft border border-primary-line text-primary-ink rounded-lg px-4 py-3 flex justify-between">
             <span>{notice}</span>
             <button onClick={() => setNotice(null)} aria-label="Dismiss">×</button>
           </div>
         )}
         {error && (
-          <div role="alert" className="mb-4 bg-red-50 border border-red-300 text-red-800 rounded-lg px-4 py-3">
+          <div role="alert" className="mb-4 bg-danger-soft border border-danger-line text-danger-ink rounded-lg px-4 py-3">
             {error}{" "}
             <button onClick={refetch} className="underline">Retry</button>
           </div>
         )}
         {courses === null && !error && (
-          <div className="bg-white border border-gray-200 rounded-lg shadow-md p-6 animate-pulse text-slate-500">
+          <div className="bg-surface border border-line rounded-lg shadow-md p-6 animate-pulse text-fg-muted">
             Loading courses…
           </div>
         )}
 
         {courses !== null && (
           <div className="overflow-x-auto">
-            <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-md">
-              <thead className="bg-gray-800 text-white">
+            <table className="min-w-full bg-surface border border-line rounded-lg shadow-md">
+              <thead className="bg-surface-muted text-fg-muted text-xs uppercase tracking-wide">
                 <tr>
                   <th className="py-3 px-4 border-b text-left">Course</th>
                   <th className="py-3 px-4 border-b text-left">Date</th>
@@ -190,16 +190,16 @@ export default function Courses() {
               <tbody>
                 {courses.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-6 px-4 text-center text-slate-500">
+                    <td colSpan={7} className="py-6 px-4 text-center text-fg-muted">
                       No courses found.
                     </td>
                   </tr>
                 )}
                 {courses.map((course) => (
                   <Fragment key={course.id}>
-                    <tr className="hover:bg-gray-50">
+                    <tr className="hover:bg-surface-muted">
                       <td className="py-3 px-4 border-b">
-                        <Link href={`/courses/${course.id}`} className="font-semibold text-blue-700 hover:underline">
+                        <Link href={`/courses/${course.id}`} className="font-semibold text-primary-ink hover:underline">
                           {course.name}
                         </Link>
                       </td>
@@ -207,7 +207,7 @@ export default function Courses() {
                       <td className="py-3 px-4 border-b">
                         <div className="flex flex-wrap gap-1">
                           {course.subjects.map((s) => (
-                            <span key={s} className="text-xs bg-blue-100 text-blue-800 rounded px-1.5 py-0.5">
+                            <span key={s} className="text-xs bg-primary-soft text-primary-ink rounded px-1.5 py-0.5">
                               {s}
                             </span>
                           ))}
@@ -222,13 +222,13 @@ export default function Courses() {
                       <td className="py-3 px-4 border-b">
                         {course.trainer ? (
                           <div>
-                            <Link href={`/trainers/${course.trainer.id}`} className="font-semibold text-blue-700 hover:underline">
+                            <Link href={`/trainers/${course.trainer.id}`} className="font-semibold text-primary-ink hover:underline">
                               {course.trainer.name}
                             </Link>
-                            <div className="text-gray-500 text-sm">{course.trainer.email}</div>
+                            <div className="text-fg-muted text-sm">{course.trainer.email}</div>
                           </div>
                         ) : (
-                          <span className="text-gray-400">Unassigned</span>
+                          <span className="text-fg-subtle">Unassigned</span>
                         )}
                       </td>
                       <td className="py-3 px-4 border-b">
@@ -240,13 +240,13 @@ export default function Courses() {
                                 trainerId: course.trainer?.id ?? null,
                               })
                             }
-                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-sm shadow"
+                            className="bg-warning hover:bg-warning-hover text-warning-fg px-3 py-1.5 rounded-lg text-sm shadow"
                           >
                             Edit
                           </button>
                           {confirmDeleteId === course.id ? (
                             <span className="flex items-center gap-1 text-sm">
-                              <button onClick={() => removeCourse(course.id)} className="bg-red-600 text-white px-2 py-1.5 rounded-lg">
+                              <button onClick={() => removeCourse(course.id)} className="bg-danger text-white px-2 py-1.5 rounded-lg">
                                 Confirm
                               </button>
                               <button onClick={() => setConfirmDeleteId(null)} className="border px-2 py-1.5 rounded-lg">
@@ -256,7 +256,7 @@ export default function Courses() {
                           ) : (
                             <button
                               onClick={() => setConfirmDeleteId(course.id)}
-                              className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm shadow"
+                              className="bg-danger hover:bg-danger text-white px-3 py-1.5 rounded-lg text-sm shadow"
                             >
                               Delete
                             </button>
@@ -264,7 +264,7 @@ export default function Courses() {
                           {course.trainer && (
                             <button
                               onClick={() => unassign(course.id)}
-                              className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm shadow"
+                              className="border border-line-strong bg-surface text-fg hover:bg-surface-muted px-3 py-1.5 rounded-lg text-sm shadow-sm"
                             >
                               Remove Trainer
                             </button>
@@ -275,7 +275,7 @@ export default function Courses() {
                                 current === course.id ? null : course.id
                               )
                             }
-                            className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm shadow"
+                            className="bg-accent hover:bg-accent text-white px-3 py-1.5 rounded-lg text-sm shadow"
                           >
                             {suggestingCourseId === course.id ? "Hide suggestions" : "Suggest trainers"}
                           </button>
@@ -284,7 +284,7 @@ export default function Courses() {
                     </tr>
                     {suggestingCourseId === course.id && (
                       <tr>
-                        <td colSpan={7} className="py-3 px-4 border-b bg-slate-50">
+                        <td colSpan={7} className="py-3 px-4 border-b bg-surface-muted">
                           <TrainerSuggestions courseId={course.id} onAssigned={refetch} />
                         </td>
                       </tr>

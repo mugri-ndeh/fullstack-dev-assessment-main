@@ -2,22 +2,136 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+/*
+ * Semantic colour tokens. Components never name a palette colour (blue-600,
+ * gray-400); they name a role (primary, fg-muted). Both themes define the same
+ * token set, so one class list works in light and dark.
+ *
+ * Values are bare HSL channels so Tailwind can inject <alpha-value>.
+ */
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+    color-scheme: light;
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+    /* Surfaces */
+    --canvas: 210 40% 98%;
+    --surface: 0 0% 100%;
+    --surface-muted: 210 40% 96%;
+    --surface-hover: 214 32% 91%;
+
+    /* Text — `muted` is the workhorse for secondary copy and is deliberately
+       dark enough to clear WCAG AA on --surface (the old gray-400/gray-500
+       did not). `subtle` is for non-essential text only. */
+    --fg: 222 47% 11%;
+    --fg-muted: 215 19% 35%;
+    --fg-subtle: 215 16% 47%;
+
+    /* Lines */
+    --line: 214 32% 91%;
+    --line-strong: 213 27% 84%;
+
+    /* Primary */
+    --primary: 221 83% 53%;
+    --primary-hover: 224 76% 45%;
+    --primary-fg: 0 0% 100%;
+    --primary-soft: 214 100% 97%;
+    --primary-line: 213 97% 87%;
+    --primary-ink: 224 76% 38%;
+
+    /* Danger */
+    --danger: 0 72% 51%;
+    --danger-hover: 0 74% 42%;
+    --danger-fg: 0 0% 100%;
+    --danger-soft: 0 86% 97%;
+    --danger-line: 0 93% 89%;
+    --danger-ink: 0 70% 35%;
+
+    /* Success */
+    --success: 142 71% 40%;
+    --success-hover: 142 72% 32%;
+    --success-fg: 0 0% 100%;
+    --success-soft: 138 76% 96%;
+    --success-line: 141 79% 85%;
+    --success-ink: 143 64% 22%;
+
+    /* Warning */
+    --warning: 32 95% 44%;
+    --warning-hover: 26 90% 37%;
+    --warning-fg: 0 0% 100%;
+    --warning-soft: 48 100% 96%;
+    --warning-line: 48 96% 79%;
+    --warning-ink: 23 83% 28%;
+
+    /* Accent — reserved for AI-assisted actions, so they read as a distinct
+       class of action rather than another primary button. */
+    --accent: 262 83% 58%;
+    --accent-hover: 263 70% 48%;
+    --accent-fg: 0 0% 100%;
+    --accent-soft: 270 100% 98%;
+    --accent-line: 269 97% 90%;
+    --accent-ink: 263 70% 42%;
+
+    --ring: 221 83% 53%;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --canvas: 222 47% 7%;
+    --surface: 222 40% 11%;
+    --surface-muted: 220 33% 16%;
+    --surface-hover: 217 28% 22%;
+
+    --fg: 210 40% 96%;
+    --fg-muted: 215 20% 72%;
+    --fg-subtle: 215 16% 58%;
+
+    --line: 215 28% 22%;
+    --line-strong: 215 25% 32%;
+
+    --primary: 217 91% 60%;
+    --primary-hover: 221 83% 53%;
+    --primary-fg: 0 0% 100%;
+    --primary-soft: 221 55% 17%;
+    --primary-line: 219 55% 30%;
+    --primary-ink: 213 94% 80%;
+
+    --danger: 0 72% 51%;
+    --danger-hover: 0 74% 45%;
+    --danger-fg: 0 0% 100%;
+    --danger-soft: 0 55% 16%;
+    --danger-line: 0 50% 30%;
+    --danger-ink: 0 91% 80%;
+
+    --success: 142 69% 42%;
+    --success-hover: 142 71% 35%;
+    --success-fg: 0 0% 100%;
+    --success-soft: 145 55% 12%;
+    --success-line: 143 45% 26%;
+    --success-ink: 141 79% 76%;
+
+    --warning: 35 92% 50%;
+    --warning-hover: 32 95% 44%;
+    --warning-fg: 26 83% 12%;
+    --warning-soft: 30 50% 14%;
+    --warning-line: 33 45% 28%;
+    --warning-ink: 46 96% 76%;
+
+    --accent: 258 90% 66%;
+    --accent-hover: 262 83% 58%;
+    --accent-fg: 0 0% 100%;
+    --accent-soft: 261 50% 18%;
+    --accent-line: 263 50% 32%;
+    --accent-ink: 269 97% 85%;
+
+    --ring: 217 91% 60%;
+  }
+
+  body {
+    @apply bg-canvas text-fg;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif;
+  }
 }
 
 @layer utilities {

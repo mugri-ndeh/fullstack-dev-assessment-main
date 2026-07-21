@@ -191,20 +191,20 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
   // ---- Loading (LLM calls can take tens of seconds) ----------------------
   if (state.status === "loading") {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow p-4">
+      <div className="bg-surface border border-line rounded-lg shadow p-4">
         <div className="flex items-center space-x-2 mb-4">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          <p className="text-sm text-slate-600">
+          <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+          <p className="text-sm text-fg-muted">
             Finding the best trainers for this course… AI matching can take up
             to a minute.
           </p>
         </div>
         <div className="space-y-3 animate-pulse">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="border border-slate-100 rounded-lg p-4">
-              <div className="h-4 bg-slate-200 rounded w-1/3 mb-3"></div>
-              <div className="h-2 bg-slate-200 rounded-full w-full mb-3"></div>
-              <div className="h-3 bg-slate-100 rounded w-5/6"></div>
+            <div key={i} className="border border-line rounded-lg p-4">
+              <div className="h-4 bg-surface-hover rounded w-1/3 mb-3"></div>
+              <div className="h-2 bg-surface-hover rounded-full w-full mb-3"></div>
+              <div className="h-3 bg-surface-muted rounded w-5/6"></div>
             </div>
           ))}
         </div>
@@ -215,11 +215,11 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
   // ---- Error -------------------------------------------------------------
   if (state.status === "error") {
     return (
-      <div className="bg-red-50 border border-red-300 rounded-lg shadow p-4">
-        <p className="text-sm text-red-800 mb-3">{state.message}</p>
+      <div className="bg-danger-soft border border-danger-line rounded-lg shadow p-4">
+        <p className="text-sm text-danger-ink mb-3">{state.message}</p>
         <button
           onClick={() => setFetchAttempt((n) => n + 1)}
-          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg shadow-md transition"
+          className="px-4 py-2 bg-primary hover:bg-primary text-white text-sm rounded-lg shadow-md transition"
         >
           Retry
         </button>
@@ -232,8 +232,8 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
   // ---- Empty -------------------------------------------------------------
   if (data.suggestions.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow p-4">
-        <p className="text-sm text-slate-600">
+      <div className="bg-surface border border-line rounded-lg shadow p-4">
+        <p className="text-sm text-fg-muted">
           No suitable trainers found for this course.
         </p>
       </div>
@@ -242,9 +242,9 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
 
   // ---- Ranked suggestions ------------------------------------------------
   return (
-    <div className="bg-white border border-slate-200 rounded-lg shadow p-4 space-y-3">
+    <div className="bg-surface border border-line rounded-lg shadow p-4 space-y-3">
       {data.source === "fallback" && (
-        <div className="bg-amber-50 border border-amber-300 text-amber-800 text-sm rounded-lg p-3">
+        <div className="bg-warning-soft border border-warning-line text-warning-ink text-sm rounded-lg p-3">
           <p className="font-semibold">
             AI matching unavailable — showing rule-based suggestions instead.
           </p>
@@ -253,7 +253,7 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
       )}
 
       {assignError && (
-        <div className="bg-red-50 border border-red-300 text-red-800 text-sm rounded-lg p-3">
+        <div className="bg-danger-soft border border-danger-line text-danger-ink text-sm rounded-lg p-3">
           {assignError}
         </div>
       )}
@@ -267,60 +267,60 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
         return (
           <div
             key={suggestion.trainerId}
-            className="border border-slate-200 rounded-lg p-4 transition hover:shadow-md"
+            className="border border-line rounded-lg p-4 transition hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="font-semibold text-slate-900">
-                  <span className="text-slate-400 mr-2">#{index + 1}</span>
+                <p className="font-semibold text-fg">
+                  <span className="text-fg-subtle mr-2">#{index + 1}</span>
                   {suggestion.name}
                 </p>
                 <div className="flex items-center space-x-2 mt-2">
-                  <div className="w-40 bg-slate-200 rounded-full h-2">
+                  <div className="w-40 bg-surface-hover rounded-full h-2">
                     <div
-                      className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all"
+                      className="bg-gradient-to-r from-primary to-accent h-2 rounded-full transition-all"
                       style={{ width: `${confidence}%` }}
                     ></div>
                   </div>
-                  <span className="text-xs font-medium text-slate-600">
+                  <span className="text-xs font-medium text-fg-muted">
                     {confidence}% match
                   </span>
                 </div>
               </div>
               {isAssigned ? (
-                <span className="shrink-0 px-4 py-2 bg-green-100 text-green-800 text-sm font-medium rounded-lg">
+                <span className="shrink-0 px-4 py-2 bg-success-soft text-success-ink text-sm font-medium rounded-lg">
                   Assigned
                 </span>
               ) : (
                 <button
                   onClick={() => assign(suggestion.trainerId, false)}
                   disabled={assigningId !== null}
-                  className="shrink-0 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm rounded-lg shadow-md transition"
+                  className="shrink-0 px-4 py-2 bg-primary hover:bg-primary disabled:bg-surface-hover disabled:cursor-not-allowed text-white text-sm rounded-lg shadow-md transition"
                 >
                   {assigningId === suggestion.trainerId ? "Assigning…" : "Assign"}
                 </button>
               )}
             </div>
 
-            <p className="text-sm text-gray-600 mt-3">{suggestion.reasoning}</p>
+            <p className="text-sm text-fg-muted mt-3">{suggestion.reasoning}</p>
 
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 mt-3">
               {FACTOR_LABELS.map(({ key, label }) => (
                 <div key={key} className="flex text-xs">
-                  <dt className="w-20 shrink-0 font-medium text-slate-500">
+                  <dt className="w-20 shrink-0 font-medium text-fg-muted">
                     {label}
                   </dt>
-                  <dd className="text-slate-700">{suggestion.factors[key]}</dd>
+                  <dd className="text-fg">{suggestion.factors[key]}</dd>
                 </div>
               ))}
             </dl>
 
             {hasPendingConflict && pendingConflicts && (
-              <div className="mt-3 bg-amber-50 border border-amber-300 rounded-lg p-3">
-                <p className="text-sm font-semibold text-amber-800 mb-2">
+              <div className="mt-3 bg-warning-soft border border-warning-line rounded-lg p-3">
+                <p className="text-sm font-semibold text-warning-ink mb-2">
                   Scheduling conflicts detected:
                 </p>
-                <ul className="list-disc list-inside text-sm text-amber-800 space-y-1 mb-3">
+                <ul className="list-disc list-inside text-sm text-warning-ink space-y-1 mb-3">
                   {pendingConflicts.conflicts.map((conflict, i) => (
                     <li key={i}>{conflict.message}</li>
                   ))}
@@ -329,14 +329,14 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
                   <button
                     onClick={() => assign(suggestion.trainerId, true)}
                     disabled={assigningId !== null}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-sm rounded-lg shadow-md transition"
+                    className="px-4 py-2 bg-warning hover:bg-warning-hover disabled:bg-surface-hover disabled:cursor-not-allowed text-warning-fg text-sm rounded-lg shadow-md transition"
                   >
                     Assign anyway
                   </button>
                   <button
                     onClick={() => setPendingConflicts(null)}
                     disabled={assigningId !== null}
-                    className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed text-slate-700 text-sm rounded-lg shadow-sm transition"
+                    className="px-4 py-2 bg-surface border border-line-strong hover:bg-surface-muted disabled:cursor-not-allowed text-fg text-sm rounded-lg shadow-sm transition"
                   >
                     Cancel
                   </button>
@@ -347,7 +347,7 @@ const TrainerSuggestions = ({ courseId, onAssigned }: TrainerSuggestionsProps) =
         );
       })}
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-fg-subtle">
         {data.source === "ai" ? "AI-generated" : "Rule-based"} suggestions
         {data.cached ? " (cached)" : ""} · confidence reflects relative ranking,
         not a guarantee.

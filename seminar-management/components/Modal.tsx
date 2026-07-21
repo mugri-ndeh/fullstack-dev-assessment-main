@@ -19,15 +19,15 @@ const Modal = ({
     aria-label={title}
   >
     <div
-      className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-8"
+      className="bg-surface rounded-xl shadow-2xl w-full max-w-2xl my-8"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+      <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+        <h2 className="text-lg font-bold text-fg">{title}</h2>
         <button
           onClick={onClose}
           aria-label="Close"
-          className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+          className="text-fg-subtle hover:text-fg text-2xl leading-none"
         >
           ×
         </button>
