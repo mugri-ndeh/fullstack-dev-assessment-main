@@ -1,0 +1,116 @@
+// Seminar management schema.
+//
+// Design notes:
+// - Courses are soft-deleted (deletedAt) so assignment history stays intact;
+//   trainers are hard-deleted and their courses revert to unassigned
+//   (trainerId SET NULL) — the service layer records that in AssignmentHistory.
+// - Money fields use Decimal to avoid float rounding.
+// - Trainer availability is a separate table rather than JSON so conflict
+//   queries can filter by date range in SQL instead of in application code.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CourseStatus {
+  DRAFT
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum AvailabilityType {
+  AVAILABLE
+  BLACKOUT
+}
+
+enum AssignmentAction {
+  ASSIGNED
+  UNASSIGNED
+}
+
+model Course {
+  id           String       @id @default(cuid())
+  name         String
+  date         DateTime     @db.Date
+  subjects     String[]
+  location     String
+  participants Int
+  notes        String?
+  price        Decimal      @db.Decimal(10, 2)
+  trainerPrice Decimal      @db.Decimal(10, 2)
+  status       CourseStatus @default(DRAFT)
+
+  trainer   Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  trainerId String?
+
+  assignmentHistory AssignmentHistory[]
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Conflict detection and the dashboard query by date/location/trainer;
+  // list views filter by status.
+  @@index([date])
+  @@index([status])
+  @@index([trainerId, date])
+  @@index([location, date])
+  @@index([deletedAt])
+}
+
+model Trainer {
+  id         String   @id @default(cuid())
+  name       String
+  subjects   String[]
+  location   String
+  email      String   @unique
+  hourlyRate Decimal? @db.Decimal(10, 2)
+  rating     Int?     @db.SmallInt // 1–5, validated at the API layer
+
+  courses           Course[]
+  availability      TrainerAvailability[]
+  assignmentHistory AssignmentHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([location])
+}
+
+model TrainerAvailability {
+  id        String           @id @default(cuid())
+  trainer   Trainer          @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String
+  type      AvailabilityType
+  startDate DateTime         @db.Date
+  endDate   DateTime         @db.Date
+
+  createdAt DateTime @default(now())
+
+  @@index([trainerId, startDate, endDate])
+}
+
+// Immutable audit log of assignment changes. Trainer reference is denormalized
+// (name/email snapshot) so history survives trainer hard-deletes.
+model AssignmentHistory {
+  id       String           @id @default(cuid())
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  action   AssignmentAction
+
+  trainer      Trainer? @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  trainerId    String?
+  trainerName  String
+  trainerEmail String
+
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([courseId, createdAt])
+}

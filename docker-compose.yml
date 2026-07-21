@@ -4,7 +4,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env
+      - ./seminar-management/.env
     environment:
       # Inside the compose network the DB/SMTP hosts are the service names,
       # overriding any localhost values a developer keeps in .env for host runs.
