@@ -1,0 +1,50 @@
+services:
+  app:
+    build: ./seminar-management
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Inside the compose network the DB/SMTP hosts are the service names,
+      # overriding any localhost values a developer keeps in .env for host runs.
+      DATABASE_URL: postgresql://seminar:${POSTGRES_PASSWORD:-seminar_dev_pw}@db:5432/seminar?schema=public
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+    volumes:
+      # Bind-mount source for hot reload; anonymous volumes keep the
+      # container's own node_modules and .next from being shadowed.
+      - ./seminar-management:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: seminar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seminar_dev_pw}
+      POSTGRES_DB: seminar
+    ports:
+      # Exposed to the host so `npx prisma migrate dev` / `studio` work locally.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seminar -d seminar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI — http://localhost:8025
+
+volumes:
+  pgdata:
